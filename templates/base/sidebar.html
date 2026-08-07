@@ -1,0 +1,67 @@
+<div class="overlay-sidebar" id="overlay-sidebar"></div>
+<aside class="sidebar" id="sidebar-menu">
+    <button class="btn-close-sidebar d-lg-none" id="btn-fermer-sidebar"><i class="bi bi-x-lg"></i></button>
+    <nav class="nav flex-column">
+        <a class="nav-link" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2"></i>Tableau de bord</a>
+
+        <!-- Administrateur -->
+        <div class="menu-administrateur d-none">
+            <div class="text-uppercase text-muted small fw-semibold mt-3 mb-1 px-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Gestion</div>
+            <a class="nav-link" href="/utilisateurs/"><i class="bi bi-people"></i>Utilisateurs</a>
+            <a class="nav-link" href="/comptes-en-attente/"><i class="bi bi-person-check"></i>Comptes en attente</a>
+            <a class="nav-link" href="/clubs/"><i class="bi bi-diagram-3"></i>Clubs</a>
+            <a class="nav-link" href="/activites/"><i class="bi bi-calendar-event"></i>Activités</a>
+            <a class="nav-link" href="/inscriptions/"><i class="bi bi-clipboard-check"></i>Inscriptions</a>
+            <a class="nav-link" href="/presences/"><i class="bi bi-check2-square"></i>Présences</a>
+            <div class="text-uppercase text-muted small fw-semibold mt-3 mb-1 px-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Pilotage</div>
+            <a class="nav-link" href="/rapports/"><i class="bi bi-bar-chart"></i>Rapports</a>
+            <a class="nav-link" href="/predictions/"><i class="bi bi-graph-up-arrow"></i>Analyses prédictives</a>
+        </div>
+
+        <!-- Responsable pédagogique -->
+        <div class="menu-proviseur d-none">
+            <div class="text-uppercase text-muted small fw-semibold mt-3 mb-1 px-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Gestion</div>
+            <a class="nav-link" href="/comptes-en-attente/"><i class="bi bi-person-check"></i>Comptes en attente</a>
+            <a class="nav-link" href="/clubs/"><i class="bi bi-diagram-3"></i>Clubs</a>
+            <a class="nav-link" href="/activites/"><i class="bi bi-calendar-event"></i>Activités</a>
+            <a class="nav-link" href="/inscriptions/"><i class="bi bi-clipboard-check"></i>Inscriptions</a>
+            <a class="nav-link" href="/presences/"><i class="bi bi-check2-square"></i>Présences</a>
+            <div class="text-uppercase text-muted small fw-semibold mt-3 mb-1 px-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Pilotage</div>
+            <a class="nav-link" href="/rapports/"><i class="bi bi-bar-chart"></i>Rapports</a>
+        </div>
+
+        <!-- Encadreur -->
+        <div class="menu-encadreur d-none">
+            <a class="nav-link" href="/mes-clubs/"><i class="bi bi-diagram-3"></i>Mes clubs</a>
+            <a class="nav-link" href="/activites/"><i class="bi bi-calendar-event"></i>Activités</a>
+            <a class="nav-link" href="/presences/"><i class="bi bi-check2-square"></i>Présences</a>
+        </div>
+
+        <!-- Élève -->
+        <div class="menu-eleve d-none">
+            <a class="nav-link" href="/mes-clubs/"><i class="bi bi-diagram-3"></i>Mes clubs</a>
+            <a class="nav-link" href="/mes-activites/"><i class="bi bi-calendar-event"></i>Mes activités</a>
+            <a class="nav-link" href="/calendrier/"><i class="bi bi-calendar3"></i>Calendrier</a>
+            <a class="nav-link" href="/mes-presences/"><i class="bi bi-check2-square"></i>Mes présences</a>
+            <a class="nav-link" href="/recommandations/"><i class="bi bi-stars"></i>Recommandations IA</a>
+        </div>
+
+        <!-- Parent -->
+        <div class="menu-parent d-none">
+            <a class="nav-link" href="/parent/enfants/"><i class="bi bi-people"></i>Mes enfants</a>
+            <a class="nav-link" href="/parent/clubs/"><i class="bi bi-diagram-3"></i>Clubs</a>
+            <a class="nav-link" href="/parent/activites/"><i class="bi bi-calendar-event"></i>Activités</a>
+            <a class="nav-link" href="/parent/presences/"><i class="bi bi-check2-square"></i>Présences</a>
+            <a class="nav-link" href="/parent/calendrier/"><i class="bi bi-calendar3"></i>Calendrier</a>
+            <a class="nav-link" href="/parent/recommandations/"><i class="bi bi-stars"></i>Recommandations IA</a>
+        </div>
+
+        <div class="text-uppercase text-muted small fw-semibold mt-3 mb-1 px-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Communication</div>
+        <a class="nav-link" href="/messagerie/"><i class="bi bi-chat-dots"></i>Messages</a>
+        <a class="nav-link" href="/notifications/"><i class="bi bi-bell"></i>Notifications</a>
+
+        <div class="text-uppercase text-muted small fw-semibold mt-3 mb-1 px-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Compte</div>
+        <a class="nav-link" href="/profil/"><i class="bi bi-person"></i>Mon profil</a>
+    
+    </nav>
+</aside>

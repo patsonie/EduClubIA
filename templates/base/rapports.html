@@ -1,0 +1,54 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Rapports{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .sidebar, .navbar-lycee, #btn-imprimer-rapport, #select-club-rapport { display: none !important; }
+        .contenu-principal { padding: 0 !important; }
+    }
+</style>
+{% endblock %}
+
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Rapports et statistiques</h4>
+    <div class="d-flex gap-2">
+        <select class="form-select" id="select-club-rapport" style="width: 220px;">
+            <option value="">Tous les clubs</option>
+        </select>
+        <button class="btn btn-primaire-app" id="btn-imprimer-rapport"><i class="bi bi-file-earmark-pdf me-1"></i>Exporter en PDF</button>
+    </div>
+</div>
+
+<div class="row g-3 mb-4" id="cartes-rapport"></div>
+
+<div class="carte">
+    <div class="p-3 border-bottom"><h6 class="fw-semibold mb-0">Détail par club</h6></div>
+    <table class="table mb-0">
+        <thead>
+            <tr class="text-muted small text-uppercase">
+                <th>Club</th><th>Catégorie</th><th>Membres</th><th>Activités</th><th>Taux de participation</th>
+            </tr>
+        </thead>
+        <tbody id="tableau-rapport-clubs">
+            <tr><td colspan="5" class="text-center text-muted py-4">Chargement...</td></tr>
+        </tbody>
+    </table>
+</div>
+<div class="carte p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-semibold mb-0">Module IA — Entraînement des modèles</h6>
+        <button class="btn btn-primaire-app" id="btn-reentrainer-ia">
+            <i class="bi bi-arrow-repeat me-1"></i>Réentraîner maintenant
+        </button>
+    </div>
+    <div id="statut-entrainement-ia" class="text-muted small">Chargement du dernier entraînement...</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/rapports.js' %}"></script>
+{% endblock %}

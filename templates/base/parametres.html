@@ -1,0 +1,126 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Mon profil{% endblock %}
+
+{% block contenu %}
+<h4 class="fw-bold mb-4">Paramètres</h4>
+
+<div class="row g-4">
+    <div class="col-md-3">
+        <div class="carte p-2">
+            <div class="nav flex-column nav-pills">
+                <button class="nav-link text-start active btn-onglet-param" data-cible="onglet-compte">
+                    <i class="bi bi-person me-2"></i>Mon compte
+                </button>
+                <button class="nav-link text-start btn-onglet-param" data-cible="onglet-securite">
+                    <i class="bi bi-shield-lock me-2"></i>Sécurité
+                </button>
+                <button class="nav-link text-start btn-onglet-param" data-cible="onglet-notifications-pref">
+                    <i class="bi bi-bell me-2"></i>Notifications
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="carte p-4" id="onglet-compte">
+            <h6 class="fw-semibold mb-3">Mon profil</h6>
+            <form id="formulaire-profil">
+                <div class="text-center mb-4">
+                    <img id="apercu-photo" src="{% static 'images/avatar-defaut.png' %}" class="rounded-circle mb-2" width="90" height="90" style="object-fit: cover;">
+                    <div>
+                        <label class="btn btn-sm btn-light" for="champ-photo">Changer la photo</label>
+                        <input type="file" id="champ-photo" name="photo" accept="image/*" class="d-none">
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">Nom</label>
+                        <input type="text" class="form-control" name="nom" id="champ-nom">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">Prénom</label>
+                        <input type="text" class="form-control" name="prenom" id="champ-prenom">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">Email</label>
+                        <input type="email" class="form-control" id="champ-email" disabled>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">Téléphone</label>
+                        <input type="text" class="form-control" name="telephone" id="champ-telephone">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">Rôle</label>
+                        <input type="text" class="form-control" id="champ-role" disabled>
+                    </div>
+                    <div class="col-12 d-none" id="bloc-preferences-eleve">
+                        <hr class="my-3">
+                        <h6 class="fw-semibold small text-muted mb-3">PROFIL SCOLAIRE (utilisé pour vos recommandations IA)</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Classe</label>
+                                <input type="text" class="form-control" name="classe" id="champ-classe" placeholder="Ex: 2nde A">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Filière</label>
+                                <input type="text" class="form-control" name="filiere" id="champ-filiere" placeholder="Ex: Scientifique, Littéraire">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-medium">Centres d'intérêt</label>
+                                <input type="text" class="form-control" name="centres_interet" id="champ-centres-interet" placeholder="Ex: informatique, robotique, lecture, théâtre">
+                                <div class="form-text">Séparez vos centres d'intérêt par des virgules — ils sont utilisés pour vous recommander des clubs adaptés.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alerte-succes-profil" class="alert alert-success d-none mt-3 small">Profil mis à jour avec succès.</div>
+                <button type="submit" class="btn btn-primaire-app mt-3">Mettre à jour</button>
+            </form>
+        </div>
+
+        <div class="carte p-4 d-none" id="onglet-securite">
+            <h6 class="fw-semibold mb-3">Changer le mot de passe</h6>
+            <form id="formulaire-mot-de-passe">
+                <div id="alerte-erreur-mdp" class="alert alert-danger d-none small"></div>
+                <div id="alerte-succes-mdp" class="alert alert-success d-none small">Mot de passe modifié avec succès.</div>
+                <div class="mb-3">
+                    <label class="form-label small fw-medium">Ancien mot de passe</label>
+                    <input type="password" class="form-control" name="ancien_mot_de_passe" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-medium">Nouveau mot de passe</label>
+                    <input type="password" class="form-control" name="nouveau_mot_de_passe" minlength="8" required>
+                </div>
+                <button type="submit" class="btn btn-primaire-app">Enregistrer le mot de passe</button>
+            </form>
+        </div>
+
+        <div class="carte p-4 d-none" id="onglet-notifications-pref">
+            <h6 class="fw-semibold mb-3">Préférences de notification</h6>
+            <form id="formulaire-preferences">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="pref-internes" name="notifications_internes">
+                    <label class="form-check-label small" for="pref-internes">Notifications internes</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="pref-email" name="notifications_email">
+                    <label class="form-check-label small" for="pref-email">Notifications par email</label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="pref-sms" name="notifications_sms">
+                    <label class="form-check-label small" for="pref-sms">Notifications par SMS</label>
+                </div>
+                <button type="submit" class="btn btn-primaire-app">Enregistrer les préférences</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/parametres.js' %}"></script>
+{% endblock %}

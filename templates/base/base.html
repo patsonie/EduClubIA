@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fr">
+<head>
+    <script src="{% static 'js/theme.js' %}"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titre %}Gestion des Clubs{% endblock %} - Lycée</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="theme-color" content="#6C5CE7">
+    <link rel="apple-touch-icon" href="{% static 'images/icons/icon-192.png' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    {% include 'base/navbar.html' %}
+
+    <div class="d-flex">
+        {% include 'base/sidebar.html' %}
+
+        <main class="flex-grow-1 p-4 contenu-principal">
+            {% block contenu %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="{% static 'js/api.js' %}"></script>
+
+    {% block extra_js %}{% endblock %}
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/service-worker.js')
+                .catch((err) => console.warn('Échec d\'enregistrement du Service Worker :', err));
+        }
+    </script>
+</body>
+</html>

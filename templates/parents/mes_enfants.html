@@ -1,0 +1,16 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Mes enfants{% endblock %}
+
+{% block contenu %}
+<h4 class="fw-bold mb-4">Mes enfants</h4>
+
+<div id="conteneur-enfants" class="row g-4">
+    <div class="col-12 text-center text-muted py-5">Chargement...</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/mes_enfants.js' %}"></script>
+{% endblock %}

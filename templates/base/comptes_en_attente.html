@@ -1,0 +1,54 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Comptes en attente{% endblock %}
+
+{% block contenu %}
+<h4 class="fw-bold mb-4">Comptes en attente de validation</h4>
+
+<ul class="nav nav-pills gap-2 mb-3">
+    <li class="nav-item"><button class="btn-filtre active" data-role=""><i class="bi bi-collection me-1"></i>Tous</button></li>
+    <li class="nav-item"><button class="btn-filtre" data-role="eleve"><i class="bi bi-mortarboard me-1"></i>Élèves</button></li>
+    <li class="nav-item"><button class="btn-filtre" data-role="encadreur"><i class="bi bi-person-badge me-1"></i>Encadreurs</button></li>
+    <li class="nav-item"><button class="btn-filtre" data-role="proviseur"><i class="bi bi-shield-check me-1"></i>Responsables pédagogiques</button></li>
+</ul>
+
+<div class="carte">
+    <table class="table mb-0">
+        <thead>
+            <tr class="text-muted small text-uppercase">
+                <th>Nom</th><th>Email</th><th>Rôle</th><th>Détails</th><th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tableau-comptes-attente">
+            <tr><td colspan="5" class="text-center text-muted py-4">Chargement...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="modalRefus" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Motif du refus</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea class="form-control" id="champ-motif-refus" rows="3" placeholder="Expliquez brièvement la raison du refus (optionnel)"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>Annuler
+                </button>
+                <button type="button" class="btn btn-refus-confirmer" id="btn-confirmer-refus">
+                    <i class="bi bi-slash-circle me-1"></i>Confirmer le refus
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/comptes_en_attente.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% load static %}
+<nav class="navbar navbar-lycee navbar-expand-lg" style="height: 64px;">
+    <div class="container-fluid px-4">
+        <button class="btn btn-sm d-lg-none me-2" id="btn-ouvrir-sidebar" style="border: 1px solid rgba(0,0,0,0.08);">
+            <i class="bi bi-list" style="font-size: 1.2rem;"></i>
+        </button>
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'dashboard' %}">
+            <img src="{% static 'images/logo.jpeg' %}" alt="Logo" height="34" class="me-2">
+            Gestion Clubs Lycée
+        </a>
+
+        <div class="d-flex align-items-center ms-auto gap-3">
+            <button class="btn-theme-toggle" id="btn-theme-toggle" title="Changer de thème">
+                <i class="bi bi-moon-fill" id="icone-theme"></i>
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-light position-relative" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-bell" style="color: var(--couleur-texte-secondaire);"></i>
+                    <span id="badge-notifications" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" id="liste-notifications" style="min-width: 320px;">
+                    <li class="dropdown-item text-muted small">Chargement...</li>
+                </ul>
+            </div>
+
+            <div class="dropdown">
+                <button class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                    <span class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: var(--couleur-primaire-claire); color: var(--couleur-primaire); font-size: 0.8rem; font-weight: 600;" id="initiales-utilisateur">--</span>
+                    <span id="nom-utilisateur-connecte" class="small">...</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/profil/"><i class="bi bi-person me-2"></i>Mon profil</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#" id="lien-deconnexion"><i class="bi bi-box-arrow-right me-2"></i>Déconnexion</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav>

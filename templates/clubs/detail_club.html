@@ -1,0 +1,62 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Détail du club{% endblock %}
+
+{% block contenu %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="/clubs/" class="text-decoration-none">Clubs</a></li>
+        <li class="breadcrumb-item active" id="fil-ariane-club">...</li>
+    </ol>
+</nav>
+
+<div class="carte p-4 mb-4" id="entete-club">
+    <div class="text-center text-muted py-4">Chargement...</div>
+</div>
+
+<div class="carte p-3">
+    <ul class="nav nav-tabs border-0 mb-3" id="onglets-club">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#onglet-membres">Membres</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-activites">Activités</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#onglet-statistiques">Statistiques</button>
+        </li>
+    </ul>
+
+    <div class="tab-pane fade show active" id="onglet-membres">
+            <table class="table">
+                <thead>
+                    <tr><th>Nom & Prénom</th><th>Classe</th><th>Date d'inscription</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="tableau-membres">
+                    <tr><td colspan="4" class="text-center text-muted">Chargement...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tab-pane fade" id="onglet-activites">
+            <div id="liste-activites-club" class="row g-3">
+                <div class="col-12 text-center text-muted py-3">Chargement...</div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="onglet-statistiques">
+            <div id="conteneur-stats-club" class="row g-3">
+                <div class="col-12 text-center text-muted py-3">Chargement...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const CLUB_ID = {{ club_id }};
+</script>
+<script src="{% static 'js/detail_club.js' %}"></script>
+{% endblock %}

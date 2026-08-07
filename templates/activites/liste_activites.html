@@ -1,0 +1,98 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Activités{% endblock %}
+
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Activités</h4>
+    <button class="btn btn-primaire-app d-none" id="btn-nouvelle-activite" data-bs-toggle="modal" data-bs-target="#modalNouvelleActivite">
+        <i class="bi bi-plus-lg me-1"></i>Nouvelle activité
+    </button>
+</div>
+
+<div class="row g-2 mb-4">
+    <div class="col-md-5">
+        <input type="text" class="form-control" id="recherche-activite" placeholder="Rechercher une activité...">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="filtre-statut-activite">
+            <option value="">Tous les statuts</option>
+            <option value="planifiee">Planifiée</option>
+            <option value="validee">Validée</option>
+            <option value="en_cours">En cours</option>
+            <option value="terminee">Terminée</option>
+            <option value="annulee">Annulée</option>
+        </select>
+    </div>
+</div>
+
+<div class="carte">
+    <table class="table mb-0">
+        <thead>
+            <tr class="text-muted small text-uppercase">
+                <th>Titre</th><th>Club</th><th>Date</th><th>Lieu</th><th>Statut</th><th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tableau-activites">
+            <tr><td colspan="6" class="text-center text-muted py-4">Chargement...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="modalNouvelleActivite" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Planifier une activité</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formulaire-nouvelle-activite">
+                <div class="modal-body">
+                    <div id="alerte-erreur-activite" class="alert alert-danger d-none small"></div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Club concerné</label>
+                        <select class="form-select" name="club" id="select-club-activite" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Titre de l'activité</label>
+                        <input type="text" class="form-control" name="titre" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Description</label>
+                        <textarea class="form-control" name="description" rows="2" required></textarea>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Date</label>
+                            <input type="date" class="form-control" name="date" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Heure</label>
+                            <input type="time" class="form-control" name="heure" required>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Lieu</label>
+                            <input type="text" class="form-control" name="lieu" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Budget (FCFA)</label>
+                            <input type="number" class="form-control" name="budget" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primaire-app">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/activites.js' %}"></script>
+{% endblock %}

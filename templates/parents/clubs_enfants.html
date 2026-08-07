@@ -1,0 +1,13 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block titre %}Clubs de mes enfants{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Clubs de mes enfants</h4>
+    <select class="form-select" id="select-enfant-clubs" style="width: 220px;"></select>
+</div>
+<div class="row g-3" id="conteneur-clubs-enfant"></div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/parent_clubs.js' %}"></script>
+{% endblock %}

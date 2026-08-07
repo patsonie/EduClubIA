@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fr">
+<head>
+    <script src="{% static 'js/theme.js' %}"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Créer un compte - EduClubIA</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f0eefd; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; margin: 0; }
+        .conteneur-principal-auth {
+            max-width: 1280px;
+            width: 100%;
+            background: #fff;
+            border-radius: 28px;
+            box-shadow: 0 20px 60px rgba(30, 20, 60, 0.15);
+            overflow: hidden;
+        }
+        .panneau-gauche {
+            background: linear-gradient(160deg, #f5f4fd 0%, #ece9fb 100%);
+            min-height: 100%;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .panneau-droit { padding: 3rem 4rem; }
+        .liste-avantages i { width: 40px; height: 40px; border-radius: 10px; background-color: #f0eefd; color: #6C5CE7; display: flex; align-items: center; justify-content: center; }
+        .liste-avantages span { color: #1e2422; }
+        .citation-carte { background: #fff; border-radius: var(--radius-lg, 18px); padding: 1.2rem 1.5rem; border-left: 3px solid #6C5CE7; }
+        .citation-carte p { color: #1e2422; }
+        .citation-carte p.text-muted { color: #5c6b63 !important; }
+
+        .panneau-gauche img[alt="Logo"] { border-radius: 10px; }
+        .citation-carte { border-radius: 18px; }
+        .carte-role { border-radius: 12px; }
+        .bloc-info-statut { border-radius: 12px; }
+        .etape-cercle { border-radius: 50%; }
+
+        .barre-progression { display: flex; align-items: center; margin-bottom: 2rem; }
+        .etape-progression { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+        .etape-cercle { width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #9ca3af; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem; z-index: 2; }
+        .etape-progression.active .etape-cercle { background: #6C5CE7; color: #fff; }
+        .etape-progression.complete .etape-cercle { background: #6C5CE7; color: #fff; }
+        .etape-libelle { font-size: 0.72rem; color: #9ca3af; margin-top: 0.4rem; text-align: center; }
+        .etape-progression.active .etape-libelle { color: #6C5CE7; font-weight: 600; }
+        .etape-ligne { position: absolute; top: 16px; left: -50%; width: 100%; height: 2px; background: #e5e7eb; z-index: 1; }
+        .etape-progression:first-child .etape-ligne { display: none; }
+        .etape-progression.complete .etape-ligne { background: #6C5CE7; }
+
+        .carte-role { border: 2px solid #e5e7eb; border-radius: var(--radius-md, 12px); padding: 1.2rem; cursor: pointer; text-align: center; transition: all 0.15s ease; height: 100%; }
+        .carte-role:hover { border-color: #a29bfe; }
+        .carte-role.selectionnee { border-color: #6C5CE7; background-color: #f0eefd; }
+        .carte-role i { font-size: 1.6rem; color: #6C5CE7; margin-bottom: 0.5rem; display: block; }
+        .carte-role .titre-role { font-weight: 600; font-size: 0.88rem; margin-bottom: 0.2rem; color: #1e2422; }
+        .carte-role .desc-role { font-size: 0.74rem; color: #5c6b63; }
+
+        .indicateur-mdp { font-size: 0.78rem; }
+        .indicateur-mdp i { margin-right: 0.4rem; }
+        .indicateur-mdp.valide { color: #22c55e; }
+        .indicateur-mdp.invalide { color: #9ca3af; }
+
+        .bloc-info-statut { background-color: #fef9e7; border: 1px solid #fde8a8; border-radius: var(--radius-md, 12px); padding: 0.9rem 1.1rem; font-size: 0.85rem; color: #92720c; }
+        .ligne-recap { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid rgba(0,0,0,0.04); font-size: 0.88rem; }
+        .ligne-recap .libelle-recap { color: #5c6b63; }
+        .ligne-recap .valeur-recap { font-weight: 500; color: #1e2422; }
+
+        .btn-theme-toggle {
+            width: 34px; height: 34px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background-color: #f5f6fa; border: 1px solid rgba(0,0,0,0.08);
+            color: #5c6b63; cursor: pointer; transition: all 0.15s ease;
+        }
+        .btn-theme-toggle:hover { background-color: #f0eefd; color: #6C5CE7; }
+
+        @media (max-width: 991px) {
+            .panneau-gauche { display: none; }
+            .conteneur-principal-auth { border-radius: 18px; }
+        }
+
+        /* ===================== MODE SOMBRE ===================== */
+        [data-theme="dark"] body { background-color: #16151f; }
+
+        [data-theme="dark"] .conteneur-principal-auth {
+            background-color: #1e1d2b;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        [data-theme="dark"] .panneau-gauche {
+            background: linear-gradient(160deg, #201d30 0%, #14121f 100%);
+        }
+        [data-theme="dark"] .panneau-gauche h2 { color: #f0eefd; }
+        [data-theme="dark"] .panneau-gauche .fw-bold.fs-5 { color: #f0eefd; }
+        [data-theme="dark"] .panneau-gauche p.text-muted { color: #b3aecb !important; }
+        [data-theme="dark"] .liste-avantages span { color: #d6d3e8; }
+        [data-theme="dark"] .liste-avantages i { background-color: #2a2640; color: #a29bfe; }
+        [data-theme="dark"] .citation-carte { background-color: #262436; border-left-color: #a29bfe; }
+        [data-theme="dark"] .citation-carte p { color: #d6d3e8; }
+        [data-theme="dark"] .citation-carte p.text-muted { color: #9691b0 !important; }
+
+        [data-theme="dark"] .panneau-gauche img[alt="Logo"] { background-color: #ffffff; border-radius: 8px; padding: 2px; }
+
+        [data-theme="dark"] h3, [data-theme="dark"] h4 { color: #f0eefd; }
+        [data-theme="dark"] .panneau-droit p.text-muted { color: #9691b0 !important; }
+        [data-theme="dark"] .entete-formulaire span, [data-theme="dark"] .small.text-muted { color: #9691b0; }
+        [data-theme="dark"] .btn-outline-secondary { color: #a29bfe; border-color: rgba(162,155,254,0.4); }
+        [data-theme="dark"] .btn-outline-secondary:hover { background-color: #2a2640; color: #a29bfe; }
+
+        [data-theme="dark"] .btn-theme-toggle { background-color: #262436; border-color: rgba(255,255,255,0.1); color: #9691b0; }
+        [data-theme="dark"] .btn-theme-toggle:hover { background-color: #2a2640; color: #a29bfe; }
+
+        [data-theme="dark"] .etape-cercle { background-color: #262436; color: #9691b0; }
+        [data-theme="dark"] .etape-progression.active .etape-cercle,
+        [data-theme="dark"] .etape-progression.complete .etape-cercle { background-color: #6C5CE7; color: #fff; }
+        [data-theme="dark"] .etape-libelle { color: #6b6885; }
+        [data-theme="dark"] .etape-progression.active .etape-libelle { color: #a29bfe; }
+        [data-theme="dark"] .etape-ligne { background-color: #262436; }
+        [data-theme="dark"] .etape-progression.complete .etape-ligne { background-color: #6C5CE7; }
+
+        [data-theme="dark"] .form-control, [data-theme="dark"] .form-select {
+            background-color: #262436; border-color: rgba(255,255,255,0.12); color: #f0eefd;
+        }
+        [data-theme="dark"] .form-control::placeholder { color: #6b7280; }
+        [data-theme="dark"] .form-control:focus, [data-theme="dark"] .form-select:focus {
+            background-color: #262436; color: #f0eefd; box-shadow: 0 0 0 3px rgba(162,155,254,0.2); border-color: #a29bfe;
+        }
+        [data-theme="dark"] .form-label { color: #d6d3e8; }
+        [data-theme="dark"] .form-check-label { color: #b3aecb; }
+        [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+        [data-theme="dark"] .carte-role { background-color: #262436; border-color: rgba(255,255,255,0.1); }
+        [data-theme="dark"] .carte-role:hover { border-color: #a29bfe; }
+        [data-theme="dark"] .carte-role.selectionnee { background-color: #2a2640; border-color: #6C5CE7; }
+        [data-theme="dark"] .carte-role i { color: #a29bfe; }
+        [data-theme="dark"] .carte-role .titre-role { color: #f0eefd; }
+        [data-theme="dark"] .carte-role .desc-role { color: #9691b0; }
+
+        [data-theme="dark"] .bloc-info-statut { background-color: #3a3320; border-color: rgba(251,191,36,0.25); color: #fbbf24; }
+
+        [data-theme="dark"] .indicateur-mdp.invalide { color: #6b7280; }
+        [data-theme="dark"] .indicateur-mdp.valide { color: #34d399; }
+
+        [data-theme="dark"] .carte { background-color: #262436; }
+        [data-theme="dark"] .ligne-recap { border-color: rgba(255,255,255,0.08); }
+        [data-theme="dark"] .ligne-recap .libelle-recap { color: #9691b0; }
+        [data-theme="dark"] .ligne-recap .valeur-recap { color: #f0eefd; }
+
+        [data-theme="dark"] .alert-info { background-color: #1e2a3d; color: #93c5fd; border-color: rgba(147,197,253,0.2); }
+        [data-theme="dark"] .alert-danger { background-color: #3a1f24; color: #f87171; border-color: rgba(248,113,113,0.2); }
+    </style>
+</head>
+<body>
+<div class="row g-0">
+    <div class="col-lg-5 panneau-gauche">
+        <a href="/" class="d-flex align-items-center text-decoration-none mb-5">
+            <img src="{% static 'images/logo.jpeg' %}" alt="Logo" height="36" class="me-2">
+            <span class="fw-bold fs-5" style="color: var(--couleur-texte);">EduClubIA</span>
+        </a>
+
+        <h2 class="fw-bold mb-3" style="color: var(--couleur-texte);">Rejoignez EduClubIA</h2>
+        <p class="text-muted mb-4" style="max-width: 380px;">
+            La plateforme intelligente pour gérer les clubs et activités extrascolaires,
+            avec des analyses prédictives et des recommandations personnalisées.
+        </p>
+
+        <div class="d-flex flex-column gap-3 mb-5 liste-avantages">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-trophy"></i><span class="small fw-medium">Découvrez des clubs adaptés à vos talents</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-calendar-check"></i><span class="small fw-medium">Participez à des activités enrichissantes</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-graph-up"></i><span class="small fw-medium">Suivez vos progrès et performances</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-bell"></i><span class="small fw-medium">Restez informé en temps réel</span>
+            </div>
+        </div>
+
+        <div class="citation-carte">
+            <p class="mb-1 small fst-italic">« L'éducation est l'arme la plus puissante qu'on puisse utiliser pour changer le monde. »</p>
+            <p class="mb-0 small text-muted">— Nelson Mandela</p>
+        </div>
+    </div>
+
+    <div class="col-lg-7 panneau-droit">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div></div>
+            <div class="small d-flex align-items-center gap-2">
+                <span class="text-muted">Déjà un compte ?</span>
+                <a href="/connexion/" class="btn btn-sm btn-outline-secondary">Se connecter</a>
+                <button class="btn-theme-toggle" id="btn-theme-toggle" title="Changer de thème" style="width: 30px; height: 30px;">
+                    <i class="bi bi-moon-fill" id="icone-theme" style="font-size: 0.85rem;"></i>
+                </button>
+            </div>
+        </div>
+
+        <div style="max-width: 640px;">
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; background-color: var(--couleur-primaire-claire); color: var(--couleur-primaire);">
+                    <i class="bi bi-person-plus" style="font-size: 1.3rem;"></i>
+                </div>
+                <div>
+                    <h4 class="fw-bold mb-0">Créer un compte</h4>
+                    <p class="text-muted small mb-0">Remplissez le formulaire pour créer votre compte EduClubIA</p>
+                </div>
+            </div>
+
+            <div class="barre-progression mt-4" id="barre-progression">
+                <div class="etape-progression active" data-etape="1">
+                    <div class="etape-ligne"></div>
+                    <div class="etape-cercle">1</div>
+                    <div class="etape-libelle">Informations<br>personnelles</div>
+                </div>
+                <div class="etape-progression" data-etape="2">
+                    <div class="etape-ligne"></div>
+                    <div class="etape-cercle">2</div>
+                    <div class="etape-libelle">Profil</div>
+                </div>
+                <div class="etape-progression" data-etape="3">
+                    <div class="etape-ligne"></div>
+                    <div class="etape-cercle">3</div>
+                    <div class="etape-libelle">Sécurité</div>
+                </div>
+                <div class="etape-progression" data-etape="4">
+                    <div class="etape-ligne"></div>
+                    <div class="etape-cercle">4</div>
+                    <div class="etape-libelle">Confirmation</div>
+                </div>
+            </div>
+
+            <div id="alerte-erreur-inscription" class="alert alert-danger d-none small"></div>
+
+            <form id="formulaire-inscription">
+
+                <!-- ÉTAPE 1 : Informations personnelles -->
+                <div class="etape-contenu" data-etape="1">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">Nom *</label>
+                            <input type="text" class="form-control" name="nom" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">Prénom *</label>
+                            <input type="text" class="form-control" name="prenom" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">Email *</label>
+                            <input type="email" class="form-control" name="email" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">Téléphone *</label>
+                            <input type="text" class="form-control" name="telephone" placeholder="6XXXXXXXX" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">Date de naissance *</label>
+                            <input type="date" class="form-control" name="date_naissance" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">Genre *</label>
+                            <select class="form-select" name="genre" required>
+                                <option value="">Sélectionnez votre genre</option>
+                                <option value="M">Masculin</option>
+                                <option value="F">Féminin</option>
+                                <option value="autre">Autre</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="button" class="btn btn-primaire-app btn-etape-suivante" data-suivante="2">Suivant <i class="bi bi-arrow-right ms-1"></i></button>
+                    </div>
+                </div>
+
+                <!-- ÉTAPE 2 : Choix du profil + champs dynamiques -->
+                <div class="etape-contenu d-none" data-etape="2">
+                    <label class="form-label small fw-medium mb-2">Rôle *</label>
+                    <div class="row g-2 mb-4">
+                        <div class="col-6 col-md-3">
+                            <div class="carte-role" data-role="eleve">
+                                <i class="bi bi-mortarboard"></i>
+                                <div class="titre-role">Élève</div>
+                                <div class="desc-role">Je participe aux clubs et activités</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="carte-role" data-role="parent">
+                                <i class="bi bi-people"></i>
+                                <div class="titre-role">Parent d'élève</div>
+                                <div class="desc-role">Je suis parent ou tuteur d'un élève</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="carte-role" data-role="encadreur">
+                                <i class="bi bi-person-badge"></i>
+                                <div class="titre-role">Encadreur</div>
+                                <div class="desc-role">J'encadre les activités des clubs</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="carte-role" data-role="proviseur">
+                                <i class="bi bi-shield-check"></i>
+                                <div class="titre-role">Responsable pédagogique</div>
+                                <div class="desc-role">Je supervise les activités pédagogiques</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Champs ÉLÈVE -->
+                    <div class="champs-role d-none" id="champs-eleve">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Matricule scolaire *</label>
+                                <input type="text" class="form-control" name="matricule">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Classe *</label>
+                                <input type="text" class="form-control" name="classe" placeholder="Ex: 2nde A">
+                            </div>
+                        </div>
+                        <div class="bloc-info-statut mt-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Votre compte sera placé en attente de validation par l'administration.
+                        </div>
+                    </div>
+
+                    <!-- Champs PARENT -->
+                    <div class="champs-role d-none" id="champs-parent">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Lien avec l'élève *</label>
+                                <select class="form-select" name="type_lien_eleve">
+                                    <option value="">Sélectionnez</option>
+                                    <option value="Père">Père</option>
+                                    <option value="Mère">Mère</option>
+                                    <option value="Tuteur">Tuteur</option>
+                                    <option value="Autre">Autre responsable légal</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Matricule de l'élève</label>
+                                <input type="text" class="form-control" name="matricule_enfant" placeholder="Optionnel, associable plus tard">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Champs ENCADREUR -->
+                    <div class="champs-role d-none" id="champs-encadreur">
+                        <label class="form-label small fw-medium mb-2">Type d'encadreur *</label>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <div class="carte-role" data-type-encadreur="professionnel">
+                                    <i class="bi bi-briefcase"></i>
+                                    <div class="titre-role">Professionnel</div>
+                                    <div class="desc-role">Justificatif professionnel requis</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="carte-role" data-type-encadreur="vacataire">
+                                    <i class="bi bi-person-workspace"></i>
+                                    <div class="titre-role">Vacataire</div>
+                                    <div class="desc-role">Justificatif facultatif</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6" id="ligne-matricule-encadreur">
+                                <label class="form-label small fw-medium">Matricule professionnel</label>
+                                <input type="text" class="form-control" name="matricule_encadreur">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Fonction *</label>
+                                <input type="text" class="form-control" name="fonction">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Domaine de compétence *</label>
+                                <input type="text" class="form-control" name="domaine_competence" placeholder="Ex: Sport, Informatique...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Club(s) à encadrer</label>
+                                <input type="text" class="form-control" name="club_souhaite">
+                            </div>
+                            <div class="col-12" id="ligne-justificatif-encadreur">
+                                <label class="form-label small fw-medium">Justificatif professionnel</label>
+                                <input type="file" class="form-control" name="justificatif">
+                            </div>
+                        </div>
+                        <div class="bloc-info-statut mt-3" id="message-statut-encadreur">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Sélectionnez un type d'encadreur pour voir les conditions de validation.
+                        </div>
+                    </div>
+
+                    <!-- Champs RESPONSABLE PÉDAGOGIQUE -->
+                    <div class="champs-role d-none" id="champs-proviseur">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Matricule professionnel *</label>
+                                <input type="text" class="form-control" name="matricule">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Fonction *</label>
+                                <input type="text" class="form-control" name="fonction">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Service / responsabilité</label>
+                                <input type="text" class="form-control" name="service_responsabilite">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-medium">Code d'invitation *</label>
+                                <input type="text" class="form-control" name="code_invitation">
+                            </div>
+                        </div>
+                        <div class="bloc-info-statut mt-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Votre compte sera soumis à validation par un administrateur.
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="button" class="btn btn-light btn-etape-precedente" data-precedente="1"><i class="bi bi-arrow-left me-1"></i>Précédent</button>
+                        <button type="button" class="btn btn-primaire-app btn-etape-suivante" data-suivante="3">Suivant <i class="bi bi-arrow-right ms-1"></i></button>
+                    </div>
+                </div>
+
+                <!-- ÉTAPE 3 : Sécurité -->
+                <div class="etape-contenu d-none" data-etape="3">
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Mot de passe *</label>
+                        <input type="password" class="form-control" name="password" id="champ-password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Confirmer le mot de passe *</label>
+                        <input type="password" class="form-control" name="password2" id="champ-password2" required>
+                    </div>
+
+                    <div class="row g-1 mb-3">
+                        <div class="col-6 indicateur-mdp invalide" id="ind-longueur"><i class="bi bi-circle"></i>Au moins 8 caractères</div>
+                        <div class="col-6 indicateur-mdp invalide" id="ind-majuscule"><i class="bi bi-circle"></i>Une majuscule</div>
+                        <div class="col-6 indicateur-mdp invalide" id="ind-chiffre"><i class="bi bi-circle"></i>Un chiffre</div>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="check-conditions" required>
+                        <label class="form-check-label small" for="check-conditions">J'accepte les Conditions d'utilisation *</label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="check-confidentialite" required>
+                        <label class="form-check-label small" for="check-confidentialite">J'accepte la Politique de confidentialité *</label>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-light btn-etape-precedente" data-precedente="2"><i class="bi bi-arrow-left me-1"></i>Précédent</button>
+                        <button type="button" class="btn btn-primaire-app" id="btn-vers-confirmation">Suivant <i class="bi bi-arrow-right ms-1"></i></button>
+                    </div>
+                </div>
+
+                <!-- ÉTAPE 4 : Confirmation -->
+                <div class="etape-contenu d-none" data-etape="4">
+                    <h6 class="fw-semibold mb-1">Vérifiez vos informations</h6>
+                    <p class="text-muted small mb-3">Veuillez vérifier que toutes les informations sont correctes avant de créer votre compte.</p>
+
+                    <div class="carte p-3 mb-3" id="recapitulatif-inscription"></div>
+
+                    <div class="alert alert-info small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        En créant un compte, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité.
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-light btn-etape-precedente" data-precedente="3"><i class="bi bi-arrow-left me-1"></i>Précédent</button>
+                        <button type="submit" class="btn btn-primaire-app">Créer mon compte <i class="bi bi-check-lg ms-1"></i></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/inscription.js' %}"></script>
+</body>
+</html>

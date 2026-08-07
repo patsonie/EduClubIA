@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fr">
+<head>
+    <script src="{% static 'js/theme.js' %}"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nouveau mot de passe - EduClubIA</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f0eefd; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+        .carte-reinitialisation { max-width: 440px; width: 100%; background: #fff; border-radius: 28px; box-shadow: 0 20px 60px rgba(30,20,60,0.15); padding: 2.5rem; }
+        .icone-cadenas { width: 64px; height: 64px; border-radius: 50%; background: #f0eefd; color: #6C5CE7; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 1.2rem; }
+        [data-theme="dark"] body { background-color: #16151f; }
+        [data-theme="dark"] .carte-reinitialisation { background-color: #1e1d2b; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        [data-theme="dark"] h3 { color: #f0eefd; }
+        [data-theme="dark"] p.text-muted { color: #9691b0 !important; }
+        [data-theme="dark"] .icone-cadenas { background-color: #2a2640; color: #a29bfe; }
+        [data-theme="dark"] .form-control { background-color: #262436; border-color: rgba(255,255,255,0.12); color: #f0eefd; }
+    </style>
+</head>
+<body>
+    <div class="carte-reinitialisation text-center">
+        <div class="icone-cadenas"><i class="bi bi-shield-lock-fill"></i></div>
+        <h3 class="fw-bold mb-1">Nouveau mot de passe</h3>
+        <p class="text-muted mb-4">Choisissez un nouveau mot de passe pour votre compte.</p>
+
+        <div id="alerte-message" class="alert d-none small text-start"></div>
+
+        <form id="formulaire-reinitialisation" class="text-start">
+            <div class="mb-3">
+                <label class="form-label small fw-medium">Nouveau mot de passe</label>
+                <input type="password" class="form-control" id="nouveau_mot_de_passe" minlength="8" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-medium">Confirmer le mot de passe</label>
+                <input type="password" class="form-control" id="confirmation_mot_de_passe" minlength="8" required>
+            </div>
+            <button type="submit" class="btn btn-primaire-app w-100 py-2">Réinitialiser le mot de passe</button>
+        </form>
+    </div>
+
+    <script>
+        const UIDB64 = "{{ uidb64 }}";
+        const TOKEN = "{{ token }}";
+
+        document.getElementById('formulaire-reinitialisation').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nouveau = document.getElementById('nouveau_mot_de_passe').value;
+            const confirmation = document.getElementById('confirmation_mot_de_passe').value;
+            const alerte = document.getElementById('alerte-message');
+
+            if (nouveau !== confirmation) {
+                alerte.textContent = "Les mots de passe ne correspondent pas.";
+                alerte.className = 'alert alert-danger small text-start';
+                return;
+            }
+
+            try {
+                const reponse = await fetch('http://127.0.0.1:8000/api/auth/reinitialiser-mot-de-passe/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uidb64: UIDB64, token: TOKEN, nouveau_mot_de_passe: nouveau }),
+                });
+                const data = await reponse.json();
+
+                if (!reponse.ok) {
+                    const premierChamp = Object.keys(data)[0];
+                    const message = Array.isArray(data[premierChamp]) ? data[premierChamp][0] : data[premierChamp];
+                    alerte.textContent = message || "Ce lien est invalide ou a expiré.";
+                    alerte.className = 'alert alert-danger small text-start';
+                    return;
+                }
+
+                alerte.textContent = data.message + " Redirection vers la connexion...";
+                alerte.className = 'alert alert-success small text-start';
+                setTimeout(() => window.location.href = '/connexion/', 2000);
+            } catch (err) {
+                alerte.textContent = "Impossible de contacter le serveur.";
+                alerte.className = 'alert alert-danger small text-start';
+            }
+        });
+    </script>
+</body>
+</html>

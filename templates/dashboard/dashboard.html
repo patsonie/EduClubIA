@@ -1,0 +1,164 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Tableau de bord{% endblock %}
+
+{% block contenu %}
+<!-- Vue générale (admin / responsable pédagogique / encadreur / parent) -->
+<div id="vue-generale">
+    <div class="mb-4">
+        <h4 class="fw-bold mb-1" id="titre-bienvenue">Bonjour 👋</h4>
+        <p class="text-muted mb-0" id="sous-titre-bienvenue">Voici un aperçu global de la plateforme</p>
+    </div>
+
+    <div class="row g-3 mb-4" id="conteneur-cartes-stats">
+        <div class="col-12 text-center text-muted py-5">Chargement des statistiques...</div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Statistiques générales</h6>
+                <canvas id="graphique-evolution" height="200"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Répartition des clubs</h6>
+                <canvas id="graphique-repartition" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Activités à venir</h6>
+                <div id="liste-activites-a-venir" class="row g-2"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Vue spécifique Responsable pédagogique -->
+<div id="vue-proviseur" class="d-none">
+    <div class="mb-4">
+        <h4 class="fw-bold mb-1" id="salutation-proviseur">Bonjour 👋</h4>
+        <p class="text-muted mb-0">Voici les statistiques des clubs et activités</p>
+    </div>
+
+    <div class="row g-3 mb-4" id="cartes-stats-proviseur"></div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-4">
+            <div class="carte p-4 h-100">
+                <h6 class="fw-semibold mb-3">Activités à venir</h6>
+                <div id="liste-activites-proviseur"></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="carte p-4 h-100">
+                <h6 class="fw-semibold mb-3">Taux de participation par club</h6>
+                <div id="barres-participation-proviseur"></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="carte p-4 h-100">
+                <h6 class="fw-semibold mb-3">Statistiques rapides</h6>
+                <div id="stats-rapides-proviseur"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Répartition des clubs par catégorie</h6>
+                <canvas id="graphique-repartition-proviseur" height="220"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Évolution des inscriptions</h6>
+                <canvas id="graphique-evolution-proviseur" height="220"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Notifications récentes</h6>
+                <div id="notifications-proviseur"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Vue spécifique Élève -->
+<div id="vue-eleve" class="d-none">
+    <div class="carte p-4 mb-4">
+        <div class="row align-items-center g-3">
+            <div class="col-md-auto">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 64px; height: 64px; background-color: var(--couleur-primaire-claire); color: var(--couleur-primaire); font-size: 1.6rem;">
+                    <i class="bi bi-person-fill"></i>
+                </div>
+            </div>
+            <div class="col-md">
+                <h5 class="fw-bold mb-0" id="salutation-eleve">Bonjour ! 👋</h5>
+                <p class="text-muted mb-0 small">Voici un aperçu de tes activités et de ta participation.</p>
+            </div>
+            <div class="col-md-auto">
+                <div class="d-flex align-items-center gap-2 p-2 rounded" style="background-color: var(--couleur-fond);">
+                    <i class="bi bi-award-fill" style="color: var(--couleur-accent); font-size: 1.3rem;"></i>
+                    <div>
+                        <div class="fw-bold small" id="niveau-eleve">-</div>
+                        <div class="text-muted" style="font-size: 0.7rem;">Niveau (indicatif)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4" id="cartes-stats-eleve"></div>
+
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="carte p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-semibold mb-0">Mes prochaines activités</h6>
+                    <a href="/mes-activites/" class="small text-decoration-none" style="color: var(--couleur-primaire);">Voir tout</a>
+                </div>
+                <div id="liste-prochaines-activites-eleve"></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="carte p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-semibold mb-0">Mes clubs</h6>
+                    <a href="/mes-clubs/" class="small text-decoration-none" style="color: var(--couleur-primaire);">Voir tout</a>
+                </div>
+                <div id="liste-clubs-eleve"></div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="carte p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-semibold mb-0">Notifications</h6>
+                    <a href="/notifications/" class="small text-decoration-none" style="color: var(--couleur-primaire);">Voir tout</a>
+                </div>
+                <div id="liste-notifications-eleve"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Mes badges <span class="text-muted small fw-normal">(calculés à partir de ton activité)</span></h6>
+                <div class="row g-3 text-center" id="conteneur-badges-eleve"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}

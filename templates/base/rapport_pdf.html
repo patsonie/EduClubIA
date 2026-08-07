@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A4; margin: 2cm; }
+    body { font-family: Helvetica, Arial, sans-serif; color: #1e1b2e; font-size: 11px; }
+    .entete { display: table; width: 100%; margin-bottom: 20px; border-bottom: 2px solid #6C5CE7; padding-bottom: 12px; }
+    .entete-gauche { display: table-cell; vertical-align: middle; width: 70%; }
+    .entete-droite { display: table-cell; vertical-align: middle; text-align: right; width: 30%; }
+    .logo { width: 45px; height: 45px; }
+    h1 { font-size: 18px; color: #6C5CE7; margin: 0 0 2px 0; }
+    .sous-titre { font-size: 10px; color: #6b7280; margin: 0; }
+    .date-generation { font-size: 9px; color: #6b7280; }
+
+    .cartes-stats { display: table; width: 100%; margin-bottom: 20px; }
+    .carte-stat-pdf { display: table-cell; width: 33%; text-align: center; padding: 10px; }
+    .carte-stat-pdf .valeur { font-size: 20px; font-weight: bold; color: #6C5CE7; }
+    .carte-stat-pdf .libelle { font-size: 9px; color: #6b7280; text-transform: uppercase; }
+
+    table.tableau-rapport { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table.tableau-rapport th { background-color: #6C5CE7; color: #ffffff; padding: 8px; text-align: left; font-size: 10px; }
+    table.tableau-rapport td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
+    table.tableau-rapport tr:nth-child(even) { background-color: #f5f6fa; }
+
+    .badge-taux-bon { color: #16a34a; font-weight: bold; }
+    .badge-taux-moyen { color: #d97706; font-weight: bold; }
+    .badge-taux-faible { color: #dc2626; font-weight: bold; }
+
+    .pied-page { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 8px; color: #9ca3af; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="entete">
+    <div class="entete-gauche">
+        <h1>EduClubIA — Rapport de gestion des clubs</h1>
+        <p class="sous-titre">{{ nom_etablissement }}</p>
+    </div>
+    <div class="entete-droite">
+        <p class="date-generation">Généré le {{ date_generation }}</p>
+        {% if club_filtre %}<p class="date-generation">Club : {{ club_filtre }}</p>{% endif %}
+    </div>
+</div>
+
+<div class="cartes-stats">
+    <div class="carte-stat-pdf">
+        <div class="valeur">{{ total_clubs }}</div>
+        <div class="libelle">Clubs actifs</div>
+    </div>
+    <div class="carte-stat-pdf">
+        <div class="valeur">{{ total_inscriptions }}</div>
+        <div class="libelle">Inscriptions totales</div>
+    </div>
+    <div class="carte-stat-pdf">
+        <div class="valeur">{{ taux_participation_global }}%</div>
+        <div class="libelle">Taux de participation global</div>
+    </div>
+</div>
+
+<table class="tableau-rapport">
+    <thead>
+        <tr>
+            <th>Club</th>
+            <th>Catégorie</th>
+            <th>Membres</th>
+            <th>Activités</th>
+            <th>Taux de participation</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for club in clubs %}
+        <tr>
+            <td>{{ club.nom }}</td>
+            <td>{{ club.categorie }}</td>
+            <td>{{ club.nombre_membres }}</td>
+            <td>{{ club.nombre_activites }}</td>
+            <td class="{% if club.taux_participation >= 70 %}badge-taux-bon{% elif club.taux_participation >= 40 %}badge-taux-moyen{% else %}badge-taux-faible{% endif %}">
+                {{ club.taux_participation }}%
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">Aucune donnée disponible.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pied-page">
+    Rapport généré automatiquement par EduClubIA — Plateforme de gestion des clubs et activités extrascolaires
+</div>
+
+</body>
+</html>

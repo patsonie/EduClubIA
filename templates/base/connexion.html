@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fr">
+<head>
+    <script src="{% static 'js/theme.js' %}"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - EduClubIA</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0eefd;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .conteneur-principal-auth {
+            max-width: 1200px;
+            width: 100%;
+            min-height: 640px;
+            background: #fff;
+            border-radius: var(--radius-xl, 28px);
+            box-shadow: 0 20px 60px rgba(30, 20, 60, 0.15);
+            overflow: hidden;
+            display: flex;
+        }
+        .panneau-illustration {
+            flex: 1;
+            background: linear-gradient(160deg, #f5f4fd 0%, #ece9fb 100%);
+            padding: 2.5rem 2.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+        }
+        .panneau-illustration .logo-principal { max-width: 120px; margin-bottom: 0.5rem; }
+        .panneau-illustration h1 { font-size: 2.2rem; font-weight: 800; color: #1e2422; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
+        .panneau-illustration h1 .accent { color: #6C5CE7; }
+        .slogan { color: #6C5CE7; font-weight: 600; font-size: 1rem; margin-bottom: 0.6rem; }
+        .slogan .separateur { color: #a29bfe; margin: 0 0.3rem; }
+        .sous-titre-panneau { color: #5c6b63; max-width: 340px; margin: 0 auto 1.5rem; line-height: 1.4; }
+
+        .illustration-eleves-conteneur { width: 100%; max-width: 420px; border-radius: var(--radius-lg, 18px); overflow: hidden; margin-bottom: 1.5rem; flex-grow: 1; display: flex; align-items: flex-end; }
+        .illustration-eleves-conteneur img { width: 100%; height: auto; display: block; }
+
+        .badge-securite { background: #fff; border-radius: var(--radius-lg, 18px); padding: 0.9rem 1.3rem; display: flex; align-items: center; gap: 0.8rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); max-width: 340px; margin-top: auto; }
+        .badge-securite .icone-shield { width: 38px; height: 38px; border-radius: 10px; background: #6C5CE7; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .badge-securite span { color: #5c6b63; text-align: left; }
+
+        .panneau-formulaire { flex: 1; display: flex; flex-direction: column; padding: 2rem 3rem; }
+        .entete-formulaire { display: flex; justify-content: flex-end; align-items: center; gap: 0.7rem; margin-bottom: auto; }
+        .entete-formulaire span { color: #5c6b63; }
+        .btn-creer-compte { border: 1px solid #6C5CE7; color: #6C5CE7; font-weight: 600; padding: 0.5rem 1.1rem; }
+        .btn-creer-compte:hover { background-color: #f0eefd; color: #6C5CE7; }
+
+        .conteneur-form-connexion { max-width: 420px; margin: auto; width: 100%; }
+        .icone-cadenas { width: 64px; height: 64px; border-radius: 50%; background: #f0eefd; color: #6C5CE7; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 1.2rem; }
+        .toggle-mdp { cursor: pointer; color: #5c6b63; }
+
+        .btn-theme-toggle {
+            width: 32px; height: 32px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background-color: #f5f6fa; border: 1px solid rgba(0,0,0,0.08);
+            color: #5c6b63; cursor: pointer; transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+        .btn-theme-toggle:hover { background-color: #f0eefd; color: #6C5CE7; }
+
+        @media (max-width: 991px) {
+            .conteneur-principal-auth { flex-direction: column; border-radius: var(--radius-lg, 18px); }
+            .panneau-illustration { padding: 2rem 1.5rem; border-radius: var(--radius-lg, 18px) var(--radius-lg, 18px) 0 0; }
+        }
+
+        /* ===================== MODE SOMBRE ===================== */
+        [data-theme="dark"] body { background-color: #16151f; }
+        [data-theme="dark"] .conteneur-principal-auth { background-color: #1e1d2b; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        [data-theme="dark"] .panneau-illustration { background: linear-gradient(160deg, #201d30 0%, #14121f 100%); }
+        [data-theme="dark"] .panneau-illustration h1 { color: #f0eefd; }
+        [data-theme="dark"] .panneau-illustration h1 .accent { color: #a29bfe; }
+        [data-theme="dark"] .slogan { color: #a29bfe; }
+        [data-theme="dark"] .sous-titre-panneau { color: #b3aecb; }
+        [data-theme="dark"] .logo-principal { background-color: #ffffff; border-radius: 16px; padding: 6px; }
+        [data-theme="dark"] .badge-securite { background-color: #262436; box-shadow: none; }
+        [data-theme="dark"] .badge-securite span { color: #b3aecb; }
+        [data-theme="dark"] .icone-cadenas { background-color: #2a2640; color: #a29bfe; }
+        [data-theme="dark"] h3 { color: #f0eefd; }
+        [data-theme="dark"] .conteneur-form-connexion p.text-muted { color: #9691b0 !important; }
+        [data-theme="dark"] .form-control { background-color: #262436; border-color: rgba(255,255,255,0.12); color: #f0eefd; }
+        [data-theme="dark"] .form-control::placeholder { color: #6b7280; }
+        [data-theme="dark"] .form-control:focus { background-color: #262436; color: #f0eefd; box-shadow: 0 0 0 3px rgba(162,155,254,0.2); border-color: #a29bfe; }
+        [data-theme="dark"] .input-group-text { background-color: #262436 !important; border-color: rgba(255,255,255,0.12); }
+        [data-theme="dark"] .input-group-text i { color: #9691b0 !important; }
+        [data-theme="dark"] .toggle-mdp { color: #9691b0; }
+        [data-theme="dark"] .toggle-mdp:hover { color: #a29bfe; }
+        [data-theme="dark"] .form-check-label { color: #b3aecb; }
+        [data-theme="dark"] .entete-formulaire span { color: #9691b0; }
+        [data-theme="dark"] .btn-creer-compte { color: #a29bfe; border-color: #a29bfe; }
+        [data-theme="dark"] .btn-creer-compte:hover { background-color: #2a2640; }
+        [data-theme="dark"] .btn-theme-toggle { background-color: #262436; border-color: rgba(255,255,255,0.1); color: #9691b0; }
+        [data-theme="dark"] .btn-theme-toggle:hover { background-color: #2a2640; color: #a29bfe; }
+        [data-theme="dark"] a[style*="couleur-primaire"] { color: #a29bfe !important; }
+    </style>
+</head>
+<body>
+<div class="conteneur-principal-auth">
+    <div class="panneau-illustration">
+        <img src="{% static 'images/logo.jpeg' %}" alt="Logo" class="logo-principal">
+        <h1>Édu<span class="accent">Club</span>IA</h1>
+        <div class="slogan">Gérer <span class="separateur">•</span> Analyser <span class="separateur">•</span> Prédire <span class="separateur">•</span> Recommander</div>
+        <p class="sous-titre-panneau">Plateforme intelligente de gestion des clubs et activités extrascolaires</p>
+
+        <div class="illustration-eleves-conteneur">
+            <img src="{% static 'images/eleve.jpg' %}" alt="Élèves EduClubIA">
+        </div>
+
+        <div class="badge-securite">
+            <div class="icone-shield"><i class="bi bi-shield-lock-fill"></i></div>
+            <span class="small">Vos données sont sécurisées et confidentielles.</span>
+        </div>
+    </div>
+
+    <div class="panneau-formulaire">
+        <div class="entete-formulaire">
+            <span class="text-muted small">Pas encore de compte ?</span>
+            <a href="/inscription/" class="btn btn-sm btn-creer-compte">
+                Créer un compte <i class="bi bi-person-plus ms-1"></i>
+            </a>
+            <button class="btn-theme-toggle" id="btn-theme-toggle" title="Changer de thème">
+                <i class="bi bi-moon-fill" id="icone-theme"></i>
+            </button>
+        </div>
+
+        <div class="conteneur-form-connexion">
+            <div class="icone-cadenas"><i class="bi bi-lock-fill"></i></div>
+            <h3 class="fw-bold mb-1">Bienvenue !</h3>
+            <p class="text-muted mb-4">Connectez-vous à votre compte EduClubIA</p>
+
+            <div id="alerte-erreur" class="alert alert-danger d-none small" role="alert"></div>
+
+            <form id="formulaire-connexion">
+                <div class="mb-3">
+                    <label class="form-label small fw-medium">Email ou téléphone</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-person text-muted"></i></span>
+                        <input type="text" class="form-control" id="email" placeholder="Entrez votre email ou numéro de téléphone" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-medium">Mot de passe</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
+                        <input type="password" class="form-control" id="password" placeholder="Entrez votre mot de passe" required>
+                        <span class="input-group-text bg-white toggle-mdp" id="toggle-mdp"><i class="bi bi-eye"></i></span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="souvenir-de-moi">
+                        <label class="form-check-label small text-muted" for="souvenir-de-moi">Se souvenir de moi</label>
+                    </div>
+                   <a href="/mot-de-passe-oublie/" class="small text-decoration-none fw-medium" style="color: #6C5CE7;">Mot de passe oublié ?</a>
+                </div>
+
+                <button type="submit" class="btn btn-primaire-app w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                    Se connecter <i class="bi bi-arrow-right"></i>
+                </button>
+            </form>
+
+            <p class="text-center text-muted small mt-4 mb-0">
+                Vous rencontrez des problèmes ?
+                <a href="#" class="text-decoration-none fw-medium" style="color: #6C5CE7;">Contactez l'administrateur</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = 'http://127.0.0.1:8000/api';
+
+    document.getElementById('toggle-mdp').addEventListener('click', () => {
+        const champ = document.getElementById('password');
+        const icone = document.querySelector('#toggle-mdp i');
+        const visible = champ.type === 'text';
+        champ.type = visible ? 'password' : 'text';
+        icone.className = visible ? 'bi bi-eye' : 'bi bi-eye-slash';
+    });
+
+    document.getElementById('formulaire-connexion').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const alerte = document.getElementById('alerte-erreur');
+        alerte.classList.add('d-none');
+
+        try {
+            const reponse = await fetch(`${API_BASE}/auth/login/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+            const data = await reponse.json();
+
+            if (!reponse.ok) {
+                const premierChamp = Object.keys(data)[0];
+                const message = Array.isArray(data[premierChamp]) ? data[premierChamp][0] : data[premierChamp];
+                alerte.textContent = message || "Identifiants incorrects.";
+                alerte.classList.remove('d-none');
+                return;
+            }
+
+            localStorage.setItem('access_token', data.access);
+            localStorage.setItem('refresh_token', data.refresh);
+            window.location.href = '/';
+        } catch (err) {
+            alerte.textContent = "Impossible de contacter le serveur.";
+            alerte.classList.remove('d-none');
+        }
+    });
+</script>
+</body>
+</html>

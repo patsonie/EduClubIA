@@ -1,0 +1,16 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block titre %}Mes présences{% endblock %}
+{% block contenu %}
+<h4 class="fw-bold mb-4">Mes présences</h4>
+<div class="row g-3 mb-4" id="carte-taux-presence"></div>
+<div class="carte">
+    <table class="table mb-0">
+        <thead><tr class="text-muted small text-uppercase"><th>Activité</th><th>Date</th><th>Statut</th></tr></thead>
+        <tbody id="tableau-mes-presences"><tr><td colspan="3" class="text-center text-muted py-4">Chargement...</td></tr></tbody>
+    </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/mes_presences.js' %}"></script>
+{% endblock %}

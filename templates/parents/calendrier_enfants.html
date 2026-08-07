@@ -1,0 +1,37 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block titre %}Calendrier de mes enfants{% endblock %}
+{% block extra_css %}
+<style>
+    .grille-calendrier { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background-color: rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.06); border-radius: 10px; overflow: hidden; }
+    .jour-entete { background-color: var(--couleur-fond); padding: 0.6rem; text-align: center; font-size: 0.78rem; font-weight: 600; color: var(--couleur-texte-secondaire); }
+    .jour-case { background-color: #fff; min-height: 100px; padding: 0.4rem; }
+    .jour-case.hors-mois { background-color: #fafafa; color: #ccc; }
+    .jour-numero { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem; }
+    .activite-pastille { font-size: 0.68rem; padding: 2px 6px; border-radius: 5px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .jour-case.aujourdhui { background-color: var(--couleur-primaire-claire); }
+
+    @media (max-width: 576px) {
+        .jour-case { min-height: 58px; padding: 0.25rem; }
+        .jour-numero { font-size: 0.7rem; margin-bottom: 0.15rem; }
+        .activite-pastille { font-size: 0.58rem; padding: 1px 3px; }
+        .jour-entete { font-size: 0.62rem; padding: 0.4rem 0.2rem; }
+    }
+</style>
+{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0" id="titre-mois-calendrier-parent">Calendrier</h4>
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select" id="select-enfant-calendrier" style="width: 200px;"></select>
+        <button class="btn btn-sm btn-light" id="btn-mois-precedent-parent"><i class="bi bi-chevron-left"></i></button>
+        <button class="btn btn-sm btn-light" id="btn-mois-suivant-parent"><i class="bi bi-chevron-right"></i></button>
+    </div>
+</div>
+<div class="carte p-3">
+    <div class="grille-calendrier" id="grille-calendrier-parent"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/parent_calendrier.js' %}"></script>
+{% endblock %}

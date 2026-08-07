@@ -1,0 +1,89 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Clubs{% endblock %}
+
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Clubs</h4>
+    <button class="btn text-white d-none" id="btn-nouveau-club" style="background-color: var(--couleur-primaire);" data-bs-toggle="modal" data-bs-target="#modalNouveauClub">
+        <i class="bi bi-plus-lg me-1"></i>Nouveau club
+    </button>
+</div>
+
+<div class="row g-2 mb-4">
+    <div class="col-md-6">
+        <input type="text" class="form-control" id="recherche-club" placeholder="Rechercher un club...">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="filtre-categorie">
+            <option value="">Toutes les catégories</option>
+            <option value="scientifique">Scientifique</option>
+            <option value="sportif">Sportif</option>
+            <option value="culturel">Culturel</option>
+            <option value="artistique">Artistique</option>
+            <option value="technologique">Technologique</option>
+            <option value="humanitaire">Humanitaire</option>
+            <option value="autre">Autre</option>
+        </select>
+    </div>
+</div>
+
+<div class="row g-3" id="conteneur-clubs">
+    <div class="col-12 text-center text-muted py-5">Chargement...</div>
+</div>
+
+<div class="modal fade" id="modalNouveauClub" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nouveau club</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formulaire-nouveau-club">
+                <div class="modal-body">
+                    <div id="alerte-erreur-club" class="alert alert-danger d-none small"></div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Nom du club</label>
+                        <input type="text" class="form-control" name="nom" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Description</label>
+                        <textarea class="form-control" name="description" rows="2" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Objectifs</label>
+                        <textarea class="form-control" name="objectifs" rows="2" required></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Catégorie</label>
+                            <select class="form-select" name="categorie" required>
+                                <option value="scientifique">Scientifique</option>
+                                <option value="sportif">Sportif</option>
+                                <option value="culturel">Culturel</option>
+                                <option value="artistique">Artistique</option>
+                                <option value="technologique">Technologique</option>
+                                <option value="humanitaire">Humanitaire</option>
+                                <option value="autre">Autre</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Nb. max membres</label>
+                            <input type="number" class="form-control" name="nombre_max_membres" value="30" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn text-white" style="background-color: var(--couleur-primaire);">Créer le club</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/clubs.js' %}"></script>
+{% endblock %}

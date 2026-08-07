@@ -1,0 +1,50 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Utilisateurs{% endblock %}
+
+{% block contenu %}
+<h4 class="fw-bold mb-4">Gestion des utilisateurs</h4>
+
+<div class="row g-2 mb-4">
+    <div class="col-md-5">
+        <input type="text" class="form-control" id="recherche-utilisateur" placeholder="Rechercher par nom, email, matricule...">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="filtre-role-utilisateur">
+            <option value="">Tous les rôles</option>
+            <option value="administrateur">Administrateur</option>
+            <option value="proviseur">Responsable pédagogique</option>
+            <option value="encadreur">Encadreur</option>
+            <option value="eleve">Élève</option>
+            <option value="parent">Parent d'élève</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="filtre-statut-utilisateur">
+            <option value="">Tous les statuts</option>
+            <option value="valide">Validé</option>
+            <option value="en_attente">En attente</option>
+            <option value="refuse">Refusé</option>
+            <option value="suspendu">Suspendu</option>
+        </select>
+    </div>
+</div>
+
+<div class="carte">
+    <table class="table mb-0">
+        <thead>
+            <tr class="text-muted small text-uppercase">
+                <th>Nom</th><th>Email</th><th>Rôle</th><th>Statut</th><th>Inscrit le</th><th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tableau-utilisateurs">
+            <tr><td colspan="6" class="text-center text-muted py-4">Chargement...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/utilisateurs.js' %}"></script>
+{% endblock %}

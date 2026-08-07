@@ -1,0 +1,18 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block titre %}Activités de mes enfants{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Activités de mes enfants</h4>
+    <select class="form-select" id="select-enfant-activites" style="width: 220px;"></select>
+</div>
+<div class="carte">
+    <table class="table mb-0">
+        <thead><tr class="text-muted small text-uppercase"><th>Titre</th><th>Club</th><th>Date</th><th>Lieu</th><th>Statut</th></tr></thead>
+        <tbody id="tableau-activites-enfant"><tr><td colspan="5" class="text-center text-muted py-4">Sélectionnez un enfant...</td></tr></tbody>
+    </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/parent_activites.js' %}"></script>
+{% endblock %}

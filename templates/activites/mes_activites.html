@@ -1,0 +1,15 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block titre %}Mes activités{% endblock %}
+{% block contenu %}
+<h4 class="fw-bold mb-4">Mes activités à venir</h4>
+<div class="carte">
+    <table class="table mb-0">
+        <thead><tr class="text-muted small text-uppercase"><th>Titre</th><th>Club</th><th>Date</th><th>Lieu</th></tr></thead>
+        <tbody id="tableau-mes-activites"><tr><td colspan="4" class="text-center text-muted py-4">Chargement...</td></tr></tbody>
+    </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/mes_activites.js' %}"></script>
+{% endblock %}

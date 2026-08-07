@@ -1,0 +1,54 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Messagerie{% endblock %}
+
+{% block extra_css %}
+<style>
+    .conteneur-messagerie { height: calc(100vh - 64px - 3rem); }
+    .liste-salons { width: 320px; overflow-y: auto; border-right: 1px solid rgba(0,0,0,0.06); }
+    .salon-item { cursor: pointer; padding: 0.9rem 1rem; border-bottom: 1px solid rgba(0,0,0,0.04); }
+    .salon-item:hover, .salon-item.actif { background-color: var(--couleur-primaire-claire); }
+    .zone-messages { overflow-y: auto; flex-grow: 1; padding: 1rem 1.5rem; }
+    .bulle-message { max-width: 65%; padding: 0.6rem 0.9rem; border-radius: 14px; margin-bottom: 0.6rem; }
+    .bulle-recue { background-color: #f1f0f9; align-self: flex-start; }
+    .bulle-envoyee { background-color: var(--couleur-primaire); color: #fff; align-self: flex-end; }
+
+    @media (max-width: 767.98px) {
+        .liste-salons { width: 100%; border-right: none; }
+        .conteneur-messagerie:not(.conversation-ouverte) .panneau-conversation { display: none; }
+        .conteneur-messagerie.conversation-ouverte .liste-salons { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block contenu %}
+<div class="carte d-flex conteneur-messagerie">
+    <div class="liste-salons">
+        <div class="p-3 border-bottom">
+            <h6 class="fw-semibold mb-0">Messages</h6>
+        </div>
+        <div id="liste-salons-conteneur">
+            <div class="text-center text-muted py-4 small">Chargement...</div>
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-grow-1 panneau-conversation">
+        <div class="p-3 border-bottom d-flex align-items-center gap-2" id="entete-conversation">
+            <button class="btn btn-sm btn-light d-md-none" id="btn-retour-conversation"><i class="bi bi-arrow-left"></i></button>
+            <span class="text-muted small">Sélectionnez une conversation</span>
+        </div>
+        <div class="zone-messages d-flex flex-column" id="zone-messages"></div>
+        <div class="p-3 border-top d-none" id="zone-saisie">
+            <form id="formulaire-message" class="d-flex gap-2">
+                <input type="text" class="form-control" id="champ-message" placeholder="Écrire un message...">
+                <button type="submit" class="btn btn-primaire-app"><i class="bi bi-send"></i></button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/messagerie.js' %}"></script>
+{% endblock %}

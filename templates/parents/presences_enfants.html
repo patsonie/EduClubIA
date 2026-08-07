@@ -1,0 +1,19 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block titre %}Présences de mes enfants{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Présences de mes enfants</h4>
+    <select class="form-select" id="select-enfant-presences" style="width: 220px;"></select>
+</div>
+<div class="row g-3 mb-4" id="carte-taux-presence-enfant"></div>
+<div class="carte">
+    <table class="table mb-0">
+        <thead><tr class="text-muted small text-uppercase"><th>Activité</th><th>Date</th><th>Statut</th></tr></thead>
+        <tbody id="tableau-presences-enfant"><tr><td colspan="3" class="text-center text-muted py-4">Sélectionnez un enfant...</td></tr></tbody>
+    </table>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/parent_presences.js' %}"></script>
+{% endblock %}
