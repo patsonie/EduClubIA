@@ -7,7 +7,8 @@ from .views import (
     TableauDeBordParentView, ComptesEnAttenteView, ValiderCompteView,
     RefuserCompteView, CodeInvitationViewSet, UtilisateurAdminViewSet,
     TelechargerJustificatifView, DemandeReinitialisationMotDePasseView,
-    ConfirmerReinitialisationMotDePasseView,
+    ConfirmerReinitialisationMotDePasseView, EnvoyerCodeValidationView,
+    RegenererCodeValidationView, ValiderCodeCompteView,  RenvoyerCodeExpireView,
 )
 
 router = DefaultRouter()
@@ -31,4 +32,8 @@ urlpatterns = [
     path('justificatif/<int:utilisateur_id>/', TelechargerJustificatifView.as_view(), name='telecharger_justificatif'),
     path('mot-de-passe-oublie/', DemandeReinitialisationMotDePasseView.as_view(), name='mot_de_passe_oublie'),
     path('reinitialiser-mot-de-passe/', ConfirmerReinitialisationMotDePasseView.as_view(), name='reinitialiser_mot_de_passe'),
+    path('valider-code/', ValiderCodeCompteView.as_view(), name='valider_code_compte'),
+    path('comptes/<int:pk>/envoyer_code/', EnvoyerCodeValidationView.as_view(), name='envoyer_code'),
+    path('comptes/<int:pk>/regenerer_code/', RegenererCodeValidationView.as_view(), name='regenerer_code'),
+    path('renvoyer-code-expire/', RenvoyerCodeExpireView.as_view(), name='renvoyer_code_expire'),
 ]

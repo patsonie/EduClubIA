@@ -5,28 +5,28 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import RelationParentEleve
-from .serializers import ParentSerializer, RelationParentEleveSerializer
-from .permissions import EstAdminOuProviseur
-from .services import construire_dashboard_parent
 from rest_framework.decorators import action
-from .models import CodeInvitation
-from .serializers import CompteEnAttenteSerializer, CodeInvitationSerializer
-from .serializers import UtilisateurAdminSerializer
-from .models import Utilisateur, JournalActivite
 from django.http import FileResponse, Http404
-import os
-from .permissions import LoginRateThrottle
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.core.mail import send_mail
 from django.conf import settings
-from .serializers import DemandeReinitialisationSerializer, ConfirmationReinitialisationSerializer
+import os
+import secrets
+
+from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation
 from .serializers import (
     InscriptionSerializer, UtilisateurSerializer,
     ConnexionSerializer, ChangementMotDePasseSerializer,
+    ParentSerializer, RelationParentEleveSerializer,
+    CompteEnAttenteSerializer, CodeInvitationSerializer,
+    UtilisateurAdminSerializer,
+    DemandeReinitialisationSerializer, ConfirmationReinitialisationSerializer,
+    ValidationCodeSerializer,
 )
+from .permissions import EstAdminOuProviseur, LoginRateThrottle
+from .services import construire_dashboard_parent
 
 
 def get_ip_client(request):
@@ -34,6 +34,16 @@ def get_ip_client(request):
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0]
     return request.META.get('REMOTE_ADDR')
+
+
+def verifier_droit_validation(request_user, compte_cible):
+    """
+    Règle métier : un responsable pédagogique peut valider élèves et encadreurs,
+    mais seul un administrateur peut valider un autre responsable pédagogique.
+    """
+    if compte_cible.role == Utilisateur.Role.PROVISEUR:
+        return request_user.role == Utilisateur.Role.ADMINISTRATEUR
+    return request_user.role in [Utilisateur.Role.ADMINISTRATEUR, Utilisateur.Role.PROVISEUR]
 
 
 class InscriptionView(generics.CreateAPIView):
@@ -45,7 +55,7 @@ class InscriptionView(generics.CreateAPIView):
     MESSAGES_PAR_ROLE = {
         'eleve': "Votre compte a été créé. Il est en attente de validation.",
         'encadreur': "Votre demande d'inscription a été envoyée. Elle sera examinée par l'administration.",
-        'proviseur': "Votre demande a été envoyée et doit être validée par un administrateur.",
+        'proviseur': "Votre demande d'inscription a été enregistrée avec succès. Votre compte est actuellement en attente de validation. Un code d'invitation vous sera envoyé par l'administrateur après vérification de votre acte de nomination.",
         'parent': "Votre compte a été créé. Vous pouvez maintenant être associé à votre enfant.",
     }
 
@@ -84,7 +94,6 @@ class ConnexionView(APIView):
     throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
-        # ... le reste de la méthode ne change pas
         serializer = ConnexionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         utilisateur = serializer.validated_data['utilisateur']
@@ -153,7 +162,8 @@ class ChangementMotDePasseView(APIView):
         )
 
         return Response({"message": "Mot de passe modifié avec succès."}, status=status.HTTP_200_OK)
-    
+
+
 class ParentViewSet(viewsets.ModelViewSet):
     """
     CRUD complet des comptes parents, réservé aux administrateurs/proviseurs.
@@ -195,7 +205,8 @@ class MesEnfantsView(generics.ListAPIView):
         if self.request.user.role != Utilisateur.Role.PARENT:
             return Utilisateur.objects.none()
         return self.request.user.enfants
-    
+
+
 class TableauDeBordParentView(APIView):
     """GET /api/auth/dashboard-parent/ — tableau de bord complet pour le parent connecté."""
     permission_classes = [permissions.IsAuthenticated]
@@ -208,14 +219,27 @@ class TableauDeBordParentView(APIView):
             )
         data = construire_dashboard_parent(request.user)
         return Response(data, status=status.HTTP_200_OK)
-    
+
+
 class ComptesEnAttenteView(generics.ListAPIView):
     """GET /api/auth/comptes-en-attente/ — liste des comptes (encadreur, élève, responsable) en attente."""
     serializer_class = CompteEnAttenteSerializer
     permission_classes = [EstAdminOuProviseur]
 
     def get_queryset(self):
-        queryset = Utilisateur.objects.filter(statut_validation=Utilisateur.StatutValidation.EN_ATTENTE)
+        statuts_en_cours = [
+            Utilisateur.StatutValidation.EN_ATTENTE,
+            Utilisateur.StatutValidation.CODE_ENVOYE,
+            Utilisateur.StatutValidation.CODE_VALIDE,
+        ]
+        queryset = Utilisateur.objects.filter(statut_validation__in=statuts_en_cours)
+
+        # Un responsable pédagogique ne voit jamais un autre responsable pédagogique
+        # en cours de traitement (à aucune étape du processus) : ce cas est réservé
+        # aux administrateurs, du début à la fin du parcours.
+        if self.request.user.role != Utilisateur.Role.ADMINISTRATEUR:
+            queryset = queryset.exclude(role=Utilisateur.Role.PROVISEUR)
+
         role = self.request.query_params.get('role')
         if role:
             queryset = queryset.filter(role=role)
@@ -233,10 +257,38 @@ class ValiderCompteView(APIView):
         except Utilisateur.DoesNotExist:
             return Response({"error": "Compte introuvable."}, status=status.HTTP_404_NOT_FOUND)
 
+        if not verifier_droit_validation(request.user, utilisateur):
+            return Response(
+                {"error": "Seul un administrateur peut valider le compte d'un responsable pédagogique."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if (
+            utilisateur.role == Utilisateur.Role.PROVISEUR
+            and utilisateur.statut_validation != Utilisateur.StatutValidation.CODE_VALIDE
+        ):
+            return Response(
+                {"error": "Ce compte responsable pédagogique doit d'abord avoir un code validé avant l'activation finale."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         utilisateur.statut_validation = Utilisateur.StatutValidation.VALIDE
         utilisateur.valide_par = request.user
         utilisateur.date_validation = timezone.now()
         utilisateur.save()
+
+        if utilisateur.role == Utilisateur.Role.PROVISEUR:
+            send_mail(
+                subject="EduClubIA — Compte activé",
+                message=(
+                    f"Bonjour {utilisateur.prenom},\n\n"
+                    f"Félicitations ! Votre compte Responsable pédagogique est désormais actif.\n"
+                    f"Vous pouvez vous connecter sur http://127.0.0.1:8000/connexion/"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[utilisateur.email],
+                fail_silently=True,
+            )
 
         return Response({"message": f"Compte de {utilisateur.nom_complet} validé avec succès."}, status=status.HTTP_200_OK)
 
@@ -250,6 +302,12 @@ class RefuserCompteView(APIView):
             utilisateur = Utilisateur.objects.get(id=pk)
         except Utilisateur.DoesNotExist:
             return Response({"error": "Compte introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not verifier_droit_validation(request.user, utilisateur):
+            return Response(
+                {"error": "Seul un administrateur peut refuser le compte d'un responsable pédagogique."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         utilisateur.statut_validation = Utilisateur.StatutValidation.REFUSE
         utilisateur.motif_refus = request.data.get('motif', '')
@@ -265,9 +323,9 @@ class CodeInvitationViewSet(viewsets.ModelViewSet):
     permission_classes = [EstAdminOuProviseur]
 
     def perform_create(self, serializer):
-        import secrets
         code = secrets.token_hex(4).upper()
         serializer.save(code=code, cree_par=self.request.user)
+
 
 class UtilisateurAdminViewSet(viewsets.ModelViewSet):
     """
@@ -294,7 +352,8 @@ class UtilisateurAdminViewSet(viewsets.ModelViewSet):
         utilisateur.statut_validation = Utilisateur.StatutValidation.VALIDE
         utilisateur.save()
         return Response({"message": f"{utilisateur.nom_complet} réactivé."}, status=status.HTTP_200_OK)
-    
+
+
 class TelechargerJustificatifView(APIView):
     """
     GET /api/auth/justificatif/{utilisateur_id}/
@@ -326,7 +385,8 @@ class TelechargerJustificatifView(APIView):
             raise Http404("Fichier introuvable sur le serveur.")
 
         return FileResponse(open(chemin_fichier, 'rb'), as_attachment=False)
-    
+
+
 class DemandeReinitialisationMotDePasseView(APIView):
     """
     POST /api/auth/mot-de-passe-oublie/  body: {"email": "..."}
@@ -392,5 +452,139 @@ class ConfirmerReinitialisationMotDePasseView(APIView):
 
         return Response(
             {"message": "Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class EnvoyerCodeValidationView(APIView):
+    """
+    POST /api/auth/comptes/{id}/envoyer_code/
+    Envoie par email le code déjà généré automatiquement à l'inscription.
+    Réservé aux administrateurs. Fixe une expiration de 24h à chaque envoi/renvoi.
+    """
+    permission_classes = [EstAdminOuProviseur]
+
+    def post(self, request, pk):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        try:
+            utilisateur = Utilisateur.objects.get(id=pk, role=Utilisateur.Role.PROVISEUR)
+        except Utilisateur.DoesNotExist:
+            return Response({"error": "Compte responsable pédagogique introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role != Utilisateur.Role.ADMINISTRATEUR:
+            return Response(
+                {"error": "Seul un administrateur peut envoyer un code d'invitation à un responsable pédagogique."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not utilisateur.code_validation_compte:
+            # Sécurité : si le code n'existait pas encore (compte créé avant cette mise à jour), on le génère.
+            utilisateur.code_validation_compte = f"RP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
+
+        utilisateur.statut_validation = Utilisateur.StatutValidation.CODE_ENVOYE
+        utilisateur.date_code_envoye = timezone.now()
+        utilisateur.date_expiration_code = timezone.now() + timedelta(hours=24)
+        utilisateur.save()
+
+        send_mail(
+            subject="EduClubIA — Votre code d'invitation",
+            message=(
+                f"Bonjour {utilisateur.prenom},\n\n"
+                f"Votre acte de nomination a été reçu. Voici votre code d'invitation "
+                f"(valable 24 heures) :\n\n"
+                f"{utilisateur.code_validation_compte}\n\n"
+                f"Rendez-vous sur la page de validation de compte et saisissez ce code "
+                f"avec votre adresse email pour poursuivre votre inscription.\n\n"
+                f"http://127.0.0.1:8000/validation-compte/"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[utilisateur.email],
+            fail_silently=True,
+        )
+
+        return Response(
+            {"message": f"Code d'invitation envoyé à {utilisateur.email}.", "code": utilisateur.code_validation_compte},
+            status=status.HTTP_200_OK,
+        )
+
+
+class RegenererCodeValidationView(APIView):
+    """POST /api/auth/comptes/{id}/regenerer_code/ — identique à envoyer_code, réutilisable."""
+    permission_classes = [EstAdminOuProviseur]
+
+    def post(self, request, pk):
+        return EnvoyerCodeValidationView().post(request, pk)
+
+
+class ValiderCodeCompteView(APIView):
+    """
+    POST /api/auth/valider-code/  body: {"email": "...", "code": "..."}
+    Étape self-service (public) : le responsable pédagogique valide son code reçu par email.
+    """
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [LoginRateThrottle]
+
+    def post(self, request):
+        from django.utils import timezone
+        serializer = ValidationCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        utilisateur = serializer.validated_data['utilisateur']
+        utilisateur.statut_validation = Utilisateur.StatutValidation.CODE_VALIDE
+        utilisateur.date_code_valide = timezone.now()
+        utilisateur.save()
+
+        return Response(
+            {"message": "Votre identité a été vérifiée. Votre compte est maintenant en attente de validation finale par l'administrateur."},
+            status=status.HTTP_200_OK,
+        )
+    
+class RenvoyerCodeExpireView(APIView):
+    """
+    POST /api/auth/renvoyer-code-expire/  body: {"email": "..."}
+    Self-service : le responsable pédagogique demande un nouveau code après expiration.
+    Génère un nouveau code, une nouvelle expiration, et renvoie l'email.
+    """
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [LoginRateThrottle]
+
+    def post(self, request):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        email = request.data.get('email')
+        utilisateur = Utilisateur.objects.filter(email=email, role=Utilisateur.Role.PROVISEUR).first()
+
+        if not utilisateur:
+            return Response({"error": "Compte introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        if utilisateur.statut_validation != Utilisateur.StatutValidation.CODE_ENVOYE:
+            return Response(
+                {"error": "Aucun code actif à renouveler pour ce compte."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        utilisateur.code_validation_compte = f"RP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
+        utilisateur.date_code_envoye = timezone.now()
+        utilisateur.date_expiration_code = timezone.now() + timedelta(hours=24)
+        utilisateur.save()
+
+        send_mail(
+            subject="EduClubIA — Nouveau code d'invitation",
+            message=(
+                f"Bonjour {utilisateur.prenom},\n\n"
+                f"Voici votre nouveau code d'invitation (valable 24 heures) :\n\n"
+                f"{utilisateur.code_validation_compte}\n\n"
+                f"http://127.0.0.1:8000/validation-compte/"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[utilisateur.email],
+            fail_silently=True,
+        )
+
+        return Response(
+            {"message": f"Un nouveau code a été envoyé à {utilisateur.email}."},
             status=status.HTTP_200_OK,
         )

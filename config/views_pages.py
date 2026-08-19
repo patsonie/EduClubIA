@@ -98,3 +98,6 @@ class PageReinitialiserMotDePasseView(TemplateView):
         context['uidb64'] = kwargs.get('uidb64')
         context['token'] = kwargs.get('token')
         return context
+    
+class PageValidationCompteView(TemplateView):
+    template_name = 'base/validation_compte.html'

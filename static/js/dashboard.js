@@ -166,7 +166,6 @@ async function chargerDashboardEleve(profil) {
     const nomsClubs = inscriptions.map(i => i.club_nom);
     const activitesAVenir = toutesActivites.filter(a => nomsClubs.includes(a.club_nom)).slice(0, 4);
 
-    // Cartes de stats (mappées sur des données réelles)
     document.getElementById('cartes-stats-eleve').innerHTML = [
         creerCarteStatEleve('bi-people-fill', inscriptions.length, 'Clubs rejoints'),
         creerCarteStatEleve('bi-calendar-check', rapport.total_activites, 'Activités suivies'),
@@ -174,18 +173,15 @@ async function chargerDashboardEleve(profil) {
         creerCarteStatEleve('bi-pie-chart-fill', `${rapport.taux_participation}%`, 'Taux de participation'),
     ].join('');
 
-    // Niveau indicatif dérivé du taux de présence (purement visuel, non stocké en base)
     const niveauEl = document.getElementById('niveau-eleve');
     if (rapport.taux_participation >= 80) niveauEl.textContent = 'Avancé';
     else if (rapport.taux_participation >= 50) niveauEl.textContent = 'Intermédiaire';
     else niveauEl.textContent = 'Débutant';
 
-    // Prochaines activités
     document.getElementById('liste-prochaines-activites-eleve').innerHTML = activitesAVenir.length
         ? activitesAVenir.map(ligneActiviteEleve).join('')
         : '<div class="text-muted small py-3 text-center">Aucune activité à venir.</div>';
 
-    // Mes clubs (avec taux de participation moyen du club comme proxy de progression)
     const conteneurClubs = document.getElementById('liste-clubs-eleve');
     if (inscriptions.length === 0) {
         conteneurClubs.innerHTML = '<div class="text-muted small py-3 text-center">Aucun club rejoint.</div>';
@@ -197,12 +193,10 @@ async function chargerDashboardEleve(profil) {
         conteneurClubs.innerHTML = lignes.join('');
     }
 
-    // Notifications
     document.getElementById('liste-notifications-eleve').innerHTML = notifications && notifications.length
         ? notifications.slice(0, 4).map(ligneNotificationEleve).join('')
         : '<div class="text-muted small py-3 text-center">Aucune notification.</div>';
 
-    // Badges (calculés à partir des données réelles, purement affichage — pas stockés en base)
     document.getElementById('conteneur-badges-eleve').innerHTML = [
         creerBadgeEleve('bi-shield-fill-check', 'Assidu', `${rapport.total_activites} activités`, '#6C5CE7'),
         creerBadgeEleve('bi-star-fill', 'Ponctuel', `${rapport.total_presences} présences`, '#22c55e'),
@@ -210,9 +204,6 @@ async function chargerDashboardEleve(profil) {
         creerBadgeEleve('bi-bell-fill', 'Informé', `${notifications ? notifications.length : 0} notifications`, '#3b82f6'),
     ].join('');
 }
-
-// ---------- Aiguillage par rôle ----------
-
 
 // ---------- Vue Responsable pédagogique ----------
 
@@ -357,7 +348,64 @@ async function chargerDashboardProviseur(profil) {
     document.getElementById('notifications-proviseur').innerHTML = notifications && notifications.length
         ? notifications.slice(0, 5).map(ligneNotificationProviseur).join('')
         : '<div class="text-muted small py-3 text-center">Aucune notification.</div>';
+
+    // Correction : ce chargement ne se déclenchait jamais tout seul auparavant.
+    chargerTableauAttenteProviseur('eleve');
 }
+
+// ---------- Tableau "Inscriptions en attente" du dashboard proviseur ----------
+
+function ligneAttenteProviseur(compte) {
+    const details = compte.role === 'eleve'
+        ? `Matricule : ${echapperHTML(compte.matricule || '-')}`
+        : `${echapperHTML(compte.domaine_competence || '-')}`;
+
+    return `
+        <tr data-id="${compte.id}">
+            <td class="fw-medium">${echapperHTML(compte.nom_complet)}</td>
+            <td class="text-muted small">${details}</td>
+            <td class="text-muted small">${new Date(compte.date_joined).toLocaleDateString('fr-FR')}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-valider-action btn-valider-attente-proviseur" data-id="${compte.id}"><i class="bi bi-check-lg"></i></button>
+                <button class="btn btn-sm btn-refuser-action btn-refuser-attente-proviseur" data-id="${compte.id}"><i class="bi bi-x-lg"></i></button>
+            </td>
+        </tr>`;
+}
+
+async function chargerTableauAttenteProviseur(role = 'eleve') {
+    const comptes = await appelApi(`/auth/comptes-en-attente/?role=${role}`);
+    const tbody = document.getElementById('tableau-attente-proviseur');
+    if (!tbody) return;
+
+    tbody.innerHTML = comptes && comptes.length
+        ? comptes.map(ligneAttenteProviseur).join('')
+        : '<tr><td colspan="4" class="text-center text-muted py-3">Aucune demande en attente.</td></tr>';
+
+    document.querySelectorAll('.btn-valider-attente-proviseur').forEach(bouton => {
+        bouton.addEventListener('click', async (e) => {
+            await appelApi(`/auth/comptes/${e.currentTarget.dataset.id}/valider/`, { method: 'POST' });
+            chargerTableauAttenteProviseur(document.querySelector('[data-role-attente].active')?.dataset.roleAttente || 'eleve');
+        });
+    });
+    document.querySelectorAll('.btn-refuser-attente-proviseur').forEach(bouton => {
+        bouton.addEventListener('click', async (e) => {
+            await appelApi(`/auth/comptes/${e.currentTarget.dataset.id}/refuser/`, { method: 'POST' });
+            chargerTableauAttenteProviseur(document.querySelector('[data-role-attente].active')?.dataset.roleAttente || 'eleve');
+        });
+    });
+}
+
+document.querySelectorAll('[data-role-attente]').forEach(bouton => {
+    bouton.addEventListener('click', (e) => {
+        document.querySelectorAll('[data-role-attente]').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        // Correction : la ligne "chargerTableauAttenteProviseur('eleve')" en double a été retirée,
+        // elle écrasait systématiquement le clic sur l'onglet "Encadreurs".
+        chargerTableauAttenteProviseur(e.currentTarget.dataset.roleAttente);
+    });
+});
+
+// ---------- Aiguillage par rôle ----------
 
 async function chargerDashboard() {
     const profil = await appelApi('/auth/profil/');
@@ -379,4 +427,5 @@ async function chargerDashboard() {
         await chargerDashboardGeneral(profil);
     }
 }
+
 document.addEventListener('DOMContentLoaded', chargerDashboard);

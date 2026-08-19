@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="fr">
+<head>
+    <script src="{% static 'js/theme.js' %}"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation de compte - EduClubIA</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f0eefd; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+        .carte-validation { max-width: 440px; width: 100%; background: #fff; border-radius: 28px; box-shadow: 0 20px 60px rgba(30,20,60,0.15); padding: 2.5rem; }
+        .icone-cadenas { width: 64px; height: 64px; border-radius: 50%; background: #f0eefd; color: #6C5CE7; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 1.2rem; }
+        [data-theme="dark"] body { background-color: #16151f; }
+        [data-theme="dark"] .carte-validation { background-color: #1e1d2b; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        [data-theme="dark"] h3 { color: #f0eefd; }
+        [data-theme="dark"] p.text-muted { color: #9691b0 !important; }
+        [data-theme="dark"] .icone-cadenas { background-color: #2a2640; color: #a29bfe; }
+        [data-theme="dark"] .form-control { background-color: #262436; border-color: rgba(255,255,255,0.12); color: #f0eefd; }
+    </style>
+</head>
+<body>
+    <div class="carte-validation text-center">
+        <div class="icone-cadenas"><i class="bi bi-shield-check"></i></div>
+        <h3 class="fw-bold mb-1">Validation de votre compte</h3>
+        <p class="text-muted mb-4">Saisissez le code d'invitation reçu par email pour poursuivre votre inscription.</p>
+
+        <div id="alerte-message" class="alert d-none small text-start"></div>
+
+        <form id="formulaire-validation-code" class="text-start">
+            <div class="mb-3">
+                <label class="form-label small fw-medium">Adresse email</label>
+                <input type="email" class="form-control" id="email" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-medium">Code d'invitation</label>
+                <input type="text" class="form-control" id="code" placeholder="RP-XXXX-XXXX" required>
+            </div>
+            <button type="submit" class="btn btn-primaire-app w-100 py-2">Vérifier le code</button>
+        </form>
+        <button id="btn-renvoyer-code" class="btn btn-light w-100 mt-2 d-none">
+            <i class="bi bi-arrow-repeat me-1"></i>Renvoyer un nouveau code
+        </button>
+
+        <a href="/connexion/" class="d-block mt-3 small text-decoration-none" style="color: #6C5CE7;">
+            <i class="bi bi-arrow-left me-1"></i>Retour à la connexion
+        </a>
+    </div>
+
+        <script>
+        const parametresUrl = new URLSearchParams(window.location.search);
+        const emailPrerempli = parametresUrl.get('email');
+        if (emailPrerempli) document.getElementById('email').value = emailPrerempli;
+
+        document.getElementById('formulaire-validation-code').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const code = document.getElementById('code').value;
+            const alerte = document.getElementById('alerte-message');
+            const btnRenvoyer = document.getElementById('btn-renvoyer-code');
+            btnRenvoyer.classList.add('d-none');
+
+            try {
+                const reponse = await fetch('http://127.0.0.1:8000/api/auth/valider-code/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code }),
+                });
+                const data = await reponse.json();
+
+                if (!reponse.ok) {
+                    const premierChamp = Object.keys(data)[0];
+                    const message = Array.isArray(data[premierChamp]) ? data[premierChamp][0] : data[premierChamp];
+                    alerte.textContent = message || "Code invalide.";
+                    alerte.className = 'alert alert-danger small text-start';
+
+                    if (message && message.includes('expiré')) {
+                        btnRenvoyer.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                alerte.textContent = data.message;
+                alerte.className = 'alert alert-success small text-start';
+                document.getElementById('formulaire-validation-code').reset();
+            } catch (err) {
+                alerte.textContent = "Impossible de contacter le serveur.";
+                alerte.className = 'alert alert-danger small text-start';
+            }
+        });
+
+        document.getElementById('btn-renvoyer-code').addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const alerte = document.getElementById('alerte-message');
+
+            const reponse = await fetch('http://127.0.0.1:8000/api/auth/renvoyer-code-expire/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            const data = await reponse.json();
+
+            alerte.textContent = data.message || data.error;
+            alerte.className = reponse.ok ? 'alert alert-success small text-start' : 'alert alert-danger small text-start';
+            document.getElementById('btn-renvoyer-code').classList.add('d-none');
+        });
+    </script>
+</body>
+</html>

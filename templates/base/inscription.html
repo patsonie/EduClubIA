@@ -411,13 +411,22 @@
                                 <input type="text" class="form-control" name="service_responsabilite">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-medium">Code d'invitation *</label>
-                                <input type="text" class="form-control" name="code_invitation">
+                                <label class="form-label small fw-medium">Établissement *</label>
+                                <input type="text" class="form-control" name="etablissement" placeholder="Nom du lycée">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-medium">Acte de nomination *</label>
+                                <div class="zone-depot-fichier" id="zone-depot-proviseur">
+                                    <i class="bi bi-file-earmark-arrow-up" style="font-size: 1.6rem; color: #6C5CE7;"></i>
+                                    <div class="small fw-medium mt-2" id="texte-depot-proviseur">Glissez votre document ici ou cliquez pour parcourir</div>
+                                    <div class="text-muted" style="font-size: 0.74rem;">PDF, JPG ou PNG — 5 Mo maximum</div>
+                                    <input type="file" class="d-none" name="justificatif_proviseur" id="champ-justificatif-proviseur" accept=".pdf,.jpg,.jpeg,.png">
+                                </div>
                             </div>
                         </div>
                         <div class="bloc-info-statut mt-3">
                             <i class="bi bi-info-circle me-1"></i>
-                            Votre compte sera soumis à validation par un administrateur.
+                            L'acte de nomination est obligatoire pour les responsables pédagogiques. Votre compte sera soumis à une procédure de validation renforcée (envoi d'un code d'invitation par l'administrateur après vérification du document).
                         </div>
                     </div>
 
@@ -481,6 +490,6 @@
     </div>
 </div>
 
-<script src="{% static 'js/inscription.js' %}"></script>
+<script src="{% static 'js/inscription.js' %}?v=2"></script>
 </body>
 </html>

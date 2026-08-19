@@ -4,6 +4,8 @@ from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvit
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
+import secrets
+
 
 class InscriptionSerializer(serializers.ModelSerializer):
     """
@@ -14,7 +16,6 @@ class InscriptionSerializer(serializers.ModelSerializer):
 
     password = serializers.CharField(write_only=True, min_length=8)
     password2 = serializers.CharField(write_only=True, min_length=8)
-    code_invitation = serializers.CharField(write_only=True, required=False, allow_blank=True)
     matricule_enfant = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
@@ -29,7 +30,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
             # Encadreur
             'type_encadreur', 'fonction', 'domaine_competence', 'club_souhaite', 'justificatif',
             # Responsable pédagogique
-            'service_responsabilite', 'code_invitation',
+            'service_responsabilite', 'etablissement',
         ]
         extra_kwargs = {
             'role': {'required': True},
@@ -82,43 +83,53 @@ class InscriptionSerializer(serializers.ModelSerializer):
                 )
 
         elif role == Utilisateur.Role.PROVISEUR:
-            code = attrs.get('code_invitation')
-            if not code:
+            if not attrs.get('justificatif'):
                 raise serializers.ValidationError(
-                    {"code_invitation": "Un code d'invitation est requis pour ce rôle."}
+                    {"justificatif": "L'acte de nomination est obligatoire pour ce rôle."}
                 )
-            from .models import CodeInvitation
-            code_obj = CodeInvitation.objects.filter(
-                code=code, role_cible=CodeInvitation.RoleCible.RESPONSABLE_PEDAGOGIQUE, utilise=False
-            ).first()
-            if not code_obj:
+            if not attrs.get('etablissement'):
                 raise serializers.ValidationError(
-                    {"code_invitation": "Ce code d'invitation est invalide ou déjà utilisé."}
+                    {"etablissement": "Le nom de l'établissement est obligatoire."}
                 )
-            attrs['_code_invitation_obj'] = code_obj
+            etablissement = attrs.get('etablissement').strip()
+            existe_deja = Utilisateur.objects.filter(
+                role=Utilisateur.Role.PROVISEUR,
+                etablissement__iexact=etablissement,
+                statut_validation__in=[
+                    Utilisateur.StatutValidation.EN_ATTENTE,
+                    Utilisateur.StatutValidation.CODE_ENVOYE,
+                    Utilisateur.StatutValidation.CODE_VALIDE,
+                    Utilisateur.StatutValidation.VALIDE,
+                ],
+            ).exists()
+            if existe_deja:
+                raise serializers.ValidationError(
+                    {"etablissement": "Un responsable pédagogique est déjà enregistré pour cet établissement."}
+                )
 
         return attrs
 
+   
     def create(self, validated_data):
-        from django.utils import timezone
-        from .models import RelationParentEleve, CodeInvitation
+        from .models import RelationParentEleve
 
         validated_data.pop('password2')
         password = validated_data.pop('password')
         matricule_enfant = validated_data.pop('matricule_enfant', None)
-        code_invitation_str = validated_data.pop('code_invitation', None)
-        code_obj = validated_data.pop('_code_invitation_obj', None)
 
         role = validated_data.get('role')
 
-        # Détermination du statut de validation selon le rôle
         if role == Utilisateur.Role.ELEVE:
             statut = Utilisateur.StatutValidation.EN_ATTENTE
         elif role == Utilisateur.Role.ENCADREUR:
             statut = Utilisateur.StatutValidation.EN_ATTENTE
         elif role == Utilisateur.Role.PROVISEUR:
             statut = Utilisateur.StatutValidation.EN_ATTENTE
-        else:  # parent
+            # Génération automatique du code dès la création — jamais manuellement par l'admin
+            validated_data['code_validation_compte'] = (
+                f"RP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
+            )
+        else:
             statut = Utilisateur.StatutValidation.VALIDE
 
         validated_data['statut_validation'] = statut
@@ -130,12 +141,6 @@ class InscriptionSerializer(serializers.ModelSerializer):
             ).first()
             if enfant:
                 RelationParentEleve.objects.get_or_create(parent=utilisateur, enfant=enfant)
-
-        if role == Utilisateur.Role.PROVISEUR and code_obj:
-            code_obj.utilise = True
-            code_obj.utilise_par = utilisateur
-            code_obj.date_utilisation = timezone.now()
-            code_obj.save()
 
         return utilisateur
 
@@ -158,6 +163,7 @@ class UtilisateurSerializer(serializers.ModelSerializer):
         if obj.role == Utilisateur.Role.PARENT:
             return obj.enfants.count()
         return None
+
 
 class ConnexionSerializer(serializers.Serializer):
     """Serializer pour la connexion (validation des identifiants)."""
@@ -257,16 +263,18 @@ class RelationParentEleveSerializer(serializers.ModelSerializer):
         if value.role != Utilisateur.Role.ELEVE:
             raise serializers.ValidationError("Cet utilisateur n'a pas le rôle 'élève'.")
         return value
-    
+
+
 class CompteEnAttenteSerializer(serializers.ModelSerializer):
     nom_complet = serializers.ReadOnlyField()
 
     class Meta:
         model = Utilisateur
         fields = [
-            'id', 'nom_complet', 'email', 'role', 'matricule', 'type_encadreur',
-            'fonction', 'domaine_competence', 'club_souhaite', 'justificatif',
+            'id', 'nom_complet', 'nom', 'prenom', 'email', 'telephone', 'role', 'matricule',
+            'type_encadreur', 'fonction', 'domaine_competence', 'club_souhaite', 'justificatif',
             'service_responsabilite', 'date_joined', 'statut_validation',
+            'code_validation_compte', 'date_code_envoye', 'date_code_valide',
         ]
         read_only_fields = fields
 
@@ -276,8 +284,8 @@ class CodeInvitationSerializer(serializers.ModelSerializer):
         model = CodeInvitation
         fields = ['id', 'code', 'role_cible', 'utilise', 'utilise_par', 'date_creation', 'date_utilisation']
         read_only_fields = ['id', 'utilise', 'utilise_par', 'date_creation', 'date_utilisation']
-        
-        
+
+
 class UtilisateurAdminSerializer(serializers.ModelSerializer):
     """Serializer complet pour la gestion admin de tous les utilisateurs, tous rôles confondus."""
 
@@ -290,7 +298,8 @@ class UtilisateurAdminSerializer(serializers.ModelSerializer):
             'matricule', 'statut_validation', 'is_active', 'date_joined',
         ]
         read_only_fields = ['id', 'date_joined']
-        
+
+
 class DemandeReinitialisationSerializer(serializers.Serializer):
     """Étape 1 : l'utilisateur fournit son email pour recevoir un lien de réinitialisation."""
 
@@ -318,6 +327,40 @@ class ConfirmationReinitialisationSerializer(serializers.Serializer):
 
         if not default_token_generator.check_token(utilisateur, attrs['token']):
             raise serializers.ValidationError("Ce lien de réinitialisation est invalide ou a expiré.")
+
+        attrs['utilisateur'] = utilisateur
+        return attrs
+
+
+class ValidationCodeSerializer(serializers.Serializer):
+    """Étape self-service : le responsable pédagogique saisit son email + le code reçu."""
+
+    email = serializers.EmailField()
+    code = serializers.CharField()
+
+    def validate(self, attrs):
+        from django.utils import timezone
+
+        utilisateur = Utilisateur.objects.filter(
+            email=attrs['email'], role=Utilisateur.Role.PROVISEUR
+        ).first()
+
+        if not utilisateur:
+            raise serializers.ValidationError("Compte introuvable.")
+
+        if utilisateur.statut_validation in [
+            Utilisateur.StatutValidation.CODE_VALIDE, Utilisateur.StatutValidation.VALIDE,
+        ]:
+            raise serializers.ValidationError("Ce code a déjà été utilisé.")
+
+        if utilisateur.statut_validation != Utilisateur.StatutValidation.CODE_ENVOYE:
+            raise serializers.ValidationError("Aucun code en attente de validation pour ce compte.")
+
+        if utilisateur.date_expiration_code and timezone.now() > utilisateur.date_expiration_code:
+            raise serializers.ValidationError("Ce code de validation a expiré. Veuillez renvoyer un autre code.")
+
+        if not utilisateur.code_validation_compte or utilisateur.code_validation_compte != attrs['code'].strip().upper():
+            raise serializers.ValidationError("Code de validation incorrect.")
 
         attrs['utilisateur'] = utilisateur
         return attrs

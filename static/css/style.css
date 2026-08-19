@@ -561,3 +561,16 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
 [data-theme="dark"] .btn-valider-action:hover { background-color: #16a34a; color: #fff; }
 [data-theme="dark"] .btn-refuser-action { background-color: #3a1f2420; color: #f87171; }
 [data-theme="dark"] .btn-refuser-action:hover { background-color: #dc2626; color: #fff; }
+
+.zone-depot-fichier {
+            border: 2px dashed #d1cbf5;
+            border-radius: 14px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .zone-depot-fichier:hover, .zone-depot-fichier.survole { border-color: #6C5CE7; background-color: #f0eefd; }
+        .zone-depot-fichier.fichier-charge { border-color: #22c55e; background-color: #f0fdf4; }
+        [data-theme="dark"] .zone-depot-fichier { border-color: rgba(255,255,255,0.15); }
+        [data-theme="dark"] .zone-depot-fichier:hover, [data-theme="dark"] .zone-depot-fichier.survole { border-color: #a29bfe; background-color: #2a2640; }

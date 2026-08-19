@@ -11,7 +11,7 @@ from .views_pages import (
     PageRecommandationsView, PageParentRecommandationsView,
     PageParentClubsView, PageParentActivitesView, PageParentPresencesView, PageParentCalendrierView,
     PageInscriptionView, PageComptesEnAttenteView, PageUtilisateursView, PageRapportsView, PageParametresView, 
-    PageReinitialiserMotDePasseView, PageMotDePasseOublieView,
+    PageReinitialiserMotDePasseView, PageMotDePasseOublieView, PageValidationCompteView,
 )
 from recommandations.views import ReentrainementIAView, HistoriqueEntrainementView
 
@@ -57,6 +57,7 @@ urlpatterns = [
     path('reinitialiser-mot-de-passe/<str:uidb64>/<str:token>/', PageReinitialiserMotDePasseView.as_view(), name='page_reinitialiser_mot_de_passe'),
     path('api/ia/reentrainement/', ReentrainementIAView.as_view(), name='reentrainement_ia'),
     path('api/ia/historique-entrainement/', HistoriqueEntrainementView.as_view(), name='historique_entrainement'),
+    path('validation-compte/', PageValidationCompteView.as_view(), name='page_validation_compte'),
 ]
 
 if settings.DEBUG:

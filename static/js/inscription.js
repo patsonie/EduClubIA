@@ -2,6 +2,9 @@ const API_BASE = 'http://127.0.0.1:8000/api';
 let etapeActuelle = 1;
 let roleSelectionne = null;
 let typeEncadreurSelectionne = null;
+const zoneDepotProviseur = document.getElementById('zone-depot-proviseur');
+const champFichierProviseur = document.getElementById('champ-justificatif-proviseur');
+const texteDepotProviseur = document.getElementById('texte-depot-proviseur');
 
 function allerAEtape(numero) {
     document.querySelectorAll('.etape-contenu').forEach(e => e.classList.add('d-none'));
@@ -53,6 +56,10 @@ function validerEtape(numero) {
         if (roleSelectionne === 'encadreur' && !typeEncadreurSelectionne) {
             afficherErreur("Veuillez préciser le type d'encadreur."); return false;
         }
+        if (roleSelectionne === 'proviseur' && (!champFichierProviseur || champFichierProviseur.files.length === 0)) {
+            afficherErreur("L'acte de nomination est obligatoire pour ce rôle.");
+            return false;
+        }
         return true;
     }
     return true;
@@ -100,7 +107,6 @@ function verifierMotDePasse() {
         'ind-longueur': valeur.length >= 8,
         'ind-majuscule': /[A-Z]/.test(valeur),
         'ind-chiffre': /[0-9]/.test(valeur),
-    
     };
     Object.entries(criteres).forEach(([id, valide]) => {
         const el = document.getElementById(id);
@@ -200,7 +206,8 @@ document.getElementById('formulaire-inscription').addEventListener('submit', asy
         donnees.matricule = formDataOriginal.get('matricule');
         donnees.fonction = formDataOriginal.get('fonction');
         donnees.service_responsabilite = formDataOriginal.get('service_responsabilite');
-        donnees.code_invitation = formDataOriginal.get('code_invitation');
+        donnees.etablissement = formDataOriginal.get('etablissement');
+        fichierJustificatif = champFichierProviseur.files[0];
     }
 
     try {
@@ -239,6 +246,8 @@ document.getElementById('formulaire-inscription').addEventListener('submit', asy
             localStorage.setItem('access_token', resultat.access);
             localStorage.setItem('refresh_token', resultat.refresh);
             window.location.href = '/';
+        } else if (roleSelectionne === 'proviseur') {
+            window.location.href = `/validation-compte/?email=${encodeURIComponent(donnees.email)}`;
         } else {
             alert(resultat.message);
             window.location.href = '/connexion/';
@@ -247,3 +256,29 @@ document.getElementById('formulaire-inscription').addEventListener('submit', asy
         afficherErreur("Impossible de contacter le serveur.");
     }
 });
+
+// --- Zone de dépôt du justificatif pour le responsable pédagogique ---
+if (zoneDepotProviseur) {
+    zoneDepotProviseur.addEventListener('click', () => champFichierProviseur.click());
+
+    ['dragover', 'dragleave', 'drop'].forEach(evt => {
+        zoneDepotProviseur.addEventListener(evt, (e) => e.preventDefault());
+    });
+    zoneDepotProviseur.addEventListener('dragover', () => zoneDepotProviseur.classList.add('survole'));
+    zoneDepotProviseur.addEventListener('dragleave', () => zoneDepotProviseur.classList.remove('survole'));
+    zoneDepotProviseur.addEventListener('drop', (e) => {
+        zoneDepotProviseur.classList.remove('survole');
+        if (e.dataTransfer.files.length) {
+            champFichierProviseur.files = e.dataTransfer.files;
+            afficherFichierCharge();
+        }
+    });
+    champFichierProviseur.addEventListener('change', afficherFichierCharge);
+
+    function afficherFichierCharge() {
+        if (champFichierProviseur.files.length) {
+            zoneDepotProviseur.classList.add('fichier-charge');
+            texteDepotProviseur.textContent = `✓ ${champFichierProviseur.files[0].name}`;
+        }
+    }
+}

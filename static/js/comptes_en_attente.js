@@ -55,6 +55,24 @@ async function chargerComptesEnAttente(role = '') {
         });
     });
 
+    document.querySelectorAll('.btn-envoyer-code').forEach(bouton => {
+        bouton.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            const resultat = await appelApi(`/auth/comptes/${id}/envoyer_code/`, { method: 'POST' });
+            if (resultat) alert(resultat.message);
+            chargerComptesEnAttente(document.querySelector('.btn-filtre.active').dataset.role);
+        });
+    });
+
+    document.querySelectorAll('.btn-regenerer-code').forEach(bouton => {
+        bouton.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            const resultat = await appelApi(`/auth/comptes/${id}/regenerer_code/`, { method: 'POST' });
+            if (resultat) alert(resultat.message);
+            chargerComptesEnAttente(document.querySelector('.btn-filtre.active').dataset.role);
+        });
+    });
+
     document.querySelectorAll('.btn-ouvrir-refus').forEach(bouton => {
         bouton.addEventListener('click', (e) => {
             compteIdEnCoursDeRefus = e.currentTarget.dataset.id;
@@ -104,3 +122,46 @@ document.addEventListener('click', async (e) => {
     const url = window.URL.createObjectURL(blob);
     window.open(url, '_blank');
 });
+
+const BADGES_STATUT_ATTENTE = {
+    en_attente: 'warning', code_envoye: 'info', code_valide: 'primary', refuse: 'danger',
+};
+
+function actionsProviseur(compte) {
+    const boutonEnvoyer = `<button class="btn btn-sm btn-valider-action btn-envoyer-code" data-id="${compte.id}"><i class="bi bi-send me-1"></i>Envoyer le code</button>`;
+    const boutonRegenerer = `<button class="btn btn-sm btn-light btn-regenerer-code" data-id="${compte.id}"><i class="bi bi-arrow-repeat me-1"></i>Régénérer</button>`;
+    const boutonValider = `<button class="btn btn-sm btn-valider-action btn-valider-compte" data-id="${compte.id}" ${compte.statut_validation !== 'code_valide' ? 'disabled title="Le code doit d\'abord être validé par le responsable pédagogique"' : ''}><i class="bi bi-check-lg me-1"></i>Valider le compte</button>`;
+    const boutonRefuser = `<button class="btn btn-sm btn-refuser-action btn-ouvrir-refus" data-id="${compte.id}"><i class="bi bi-x-lg me-1"></i>Refuser</button>`;
+
+    if (compte.statut_validation === 'en_attente') return `<div class="d-flex gap-2 flex-wrap justify-content-end">${boutonEnvoyer}${boutonRefuser}</div>`;
+    if (compte.statut_validation === 'code_envoye') return `<div class="d-flex gap-2 flex-wrap justify-content-end">${boutonRegenerer}${boutonRefuser}</div>`;
+    if (compte.statut_validation === 'code_valide') return `<div class="d-flex gap-2 flex-wrap justify-content-end">${boutonValider}${boutonRefuser}</div>`;
+    return '<span class="text-muted small">-</span>';
+}
+
+function ligneCompteAttente(compte) {
+    const estProviseur = compte.role === 'proviseur';
+    const couleurStatut = BADGES_STATUT_ATTENTE[compte.statut_validation] || 'secondary';
+
+    const colonneCode = estProviseur
+        ? `<td class="small">${compte.code_validation_compte ? `<code>${echapperHTML(compte.code_validation_compte)}</code>` : '-'}</td>`
+        : '';
+
+    const actions = estProviseur
+        ? actionsProviseur(compte)
+        : `<div class="d-flex gap-2 justify-content-end flex-wrap">
+             <button class="btn btn-sm btn-valider-action btn-valider-compte" data-id="${compte.id}"><i class="bi bi-check-lg me-1"></i>Valider</button>
+             <button class="btn btn-sm btn-refuser-action btn-ouvrir-refus" data-id="${compte.id}"><i class="bi bi-x-lg me-1"></i>Refuser</button>
+           </div>`;
+
+    return `
+        <tr data-id="${compte.id}">
+            <td class="fw-medium">${echapperHTML(compte.nom_complet)}</td>
+            <td class="text-muted small">${echapperHTML(compte.email)}</td>
+            <td><span class="badge bg-primary-subtle text-primary">${LIBELLES_ROLES_ATTENTE[compte.role] || compte.role}</span></td>
+            <td class="text-muted small">${detailsCompte(compte)}</td>
+            ${estProviseur ? colonneCode : '<td></td>'}
+            <td><span class="badge bg-${couleurStatut}-subtle text-${couleurStatut}">${compte.statut_validation}</span></td>
+            <td>${actions}</td>
+        </tr>`;
+}

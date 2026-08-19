@@ -88,6 +88,29 @@
             </div>
         </div>
     </div>
+        <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="carte p-4">
+                <h6 class="fw-semibold mb-3">Inscriptions en attente</h6>
+                <ul class="nav nav-pills gap-2 mb-3">
+                    <li class="nav-item"><button class="btn-filtre active" data-role-attente="eleve">Élèves</button></li>
+                    <li class="nav-item"><button class="btn-filtre" data-role-attente="encadreur">Encadreurs</button></li>
+                </ul>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr class="text-muted small text-uppercase">
+                                <th>Nom</th><th>Détails</th><th>Date</th><th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableau-attente-proviseur">
+                            <tr><td colspan="4" class="text-center text-muted py-3">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 </div>
 

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from .managers import UtilisateurManager
+from django.db.models import Q
 from .validators import valider_extension_justificatif, valider_extension_photo, valider_taille_fichier
 
 
@@ -50,15 +51,24 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
 
     class StatutValidation(models.TextChoices):
         EN_ATTENTE = 'en_attente', 'En attente de validation'
-        VALIDE = 'valide', 'Validé'
+        CODE_ENVOYE = 'code_envoye', 'Code envoyé'
+        CODE_VALIDE = 'code_valide', 'Code validé'
+        VALIDE = 'valide', 'Actif'
         REFUSE = 'refuse', 'Refusé'
         SUSPENDU = 'suspendu', 'Suspendu'
-
+        
+        
     genre = models.CharField(max_length=10, choices=Genre.choices, blank=True, null=True)
     matricule = models.CharField(max_length=30, unique=True, blank=True, null=True)
     statut_validation = models.CharField(
         max_length=15, choices=StatutValidation.choices, default=StatutValidation.VALIDE
     )
+    code_validation_compte = models.CharField(max_length=20, blank=True, null=True)
+    date_code_envoye = models.DateTimeField(blank=True, null=True)
+    date_code_valide = models.DateTimeField(blank=True, null=True) 
+    etablissement = models.CharField(max_length=200, blank=True, null=True)
+    date_expiration_code = models.DateTimeField(blank=True, null=True)
+    
 
     # Champs spécifiques Encadreur
     type_encadreur = models.CharField(max_length=15, choices=TypeEncadreur.choices, blank=True, null=True)
@@ -102,6 +112,16 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     class Meta:
         verbose_name = "Utilisateur"
         verbose_name_plural = "Utilisateurs"
+        
+        constraints = [
+            models.UniqueConstraint(
+                fields=['etablissement'],
+                condition=Q(role='proviseur') & Q(statut_validation__in=[
+                    'en_attente', 'code_envoye', 'code_valide', 'valide',
+                ]),
+                name='un_seul_responsable_pedagogique_par_etablissement',
+            )
+        ]
 
     def __str__(self):
         return f"{self.prenom} {self.nom} ({self.get_role_display()})"
