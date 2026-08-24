@@ -7,10 +7,11 @@ django-filter==25.2
 channels==4.3.2
 daphne==4.2.2
 
-dj-database-url
-psycopg2-binary
-whitenoise
-gunicorn
+# === Déploiement production ===
+psycopg2-binary>=2.9
+dj-database-url>=2.1
+whitenoise>=6.6
+gunicorn>=21.2
 
 python-decouple==3.8
 
@@ -40,3 +41,4 @@ arabic-reshaper==3.0.1
 python-bidi==0.6.11
 
 ujson==5.13.0
+

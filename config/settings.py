@@ -7,7 +7,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
-
+RENDER_EXTERNAL_HOSTNAME = config('RENDER_EXTERNAL_HOSTNAME', default='')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',
@@ -40,6 +43,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -69,21 +73,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+import dj_database_url
+
+DATABASE_URL_LOCAL = (
+    f"mysql://{config('DB_USER', default='root')}:{config('DB_PASSWORD', default='')}"
+    f"@{config('DB_HOST', default='localhost')}:{config('DB_PORT', default='3306')}"
+    f"/{config('DB_NAME', default='gestion_clubs_db')}"
+)
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='3306'),
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET default_storage_engine=INNODB",
-        },
-    }
+    'default': dj_database_url.config(
+        default=DATABASE_URL_LOCAL,
+        conn_max_age=600,
+    )
 }
 
+# Le workaround InnoDB ne s'applique qu'en local MySQL, pas sur Postgres (Render)
+if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS']['charset'] = 'utf8mb4'
+    DATABASES['default']['OPTIONS']['init_command'] = 'SET default_storage_engine=INNODB'
 AUTH_USER_MODEL = 'utilisateurs.Utilisateur'
 
 REST_FRAMEWORK = {
@@ -105,11 +114,11 @@ REST_FRAMEWORK = {
 }
 
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True  # pratique en développement local
+    CORS_ALLOW_ALL_ORIGINS = True
 else:
     CORS_ALLOWED_ORIGINS = [
-        "https://ton-domaine-de-production.com",  # à remplacer lors du déploiement
-    ]
+        f"https://{RENDER_EXTERNAL_HOSTNAME}",
+    ] if RENDER_EXTERNAL_HOSTNAME else []
 
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Douala'
@@ -118,8 +127,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
