@@ -109,7 +109,7 @@ document.addEventListener('click', async (e) => {
     const id = e.target.dataset.id;
     const token = obtenirToken();
 
-    const reponse = await fetch(`http://127.0.0.1:8000/api/auth/justificatif/${id}/`, {
+    const reponse = await fetch(`${window.location.origin}/api/auth/justificatif/${id}/`, {
         headers: { 'Authorization': `Bearer ${token}` },
     });
 

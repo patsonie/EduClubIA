@@ -64,7 +64,7 @@
             btnRenvoyer.classList.add('d-none');
 
             try {
-                const reponse = await fetch('http://127.0.0.1:8000/api/auth/valider-code/', {
+               const reponse = await fetch(window.location.origin + '/api/auth/valider-code/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, code }),
@@ -96,7 +96,7 @@
             const email = document.getElementById('email').value;
             const alerte = document.getElementById('alerte-message');
 
-            const reponse = await fetch('http://127.0.0.1:8000/api/auth/renvoyer-code-expire/', {
+            const reponse = wait fetch(window.location.origin +'/api/auth/renvoyer-code-expire/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),

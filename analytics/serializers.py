@@ -12,9 +12,6 @@ class RisqueDesengagementSerializer(serializers.ModelSerializer):
         read_only_fields = fields
         
 
-
-
-
 class PredictionParticipationSerializer(serializers.ModelSerializer):
     activite_titre = serializers.CharField(source='activite.titre', read_only=True)
 

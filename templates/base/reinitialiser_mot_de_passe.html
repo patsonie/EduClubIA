@@ -60,7 +60,7 @@
             }
 
             try {
-                const reponse = await fetch('http://127.0.0.1:8000/api/auth/reinitialiser-mot-de-passe/', {
+                const reponse = await fetch(window.location.origin + '/api/auth/reinitialiser-mot-de-passe/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ uidb64: UIDB64, token: TOKEN, nouveau_mot_de_passe: nouveau }),

@@ -24,12 +24,7 @@ class ActiviteFilterSet(django_filters.FilterSet):
 
 
 class ActiviteViewSet(viewsets.ModelViewSet):
-    """
-    CRUD complet pour les activités.
-    Filtre : ?club=1&statut=planifiee
-    Recherche : ?search=robotique
-    Action supplémentaire : POST /api/activites/{id}/valider/
-    """
+   
     queryset = Activite.objects.all()
     permission_classes = [EstEncadreurOuAdminOuLectureSeule]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -69,7 +64,7 @@ class ActiviteViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):
-        """POST /api/activites/{id}/valider/ — Validation rapide d'une activité planifiée."""
+        """Validation rapide d'une activité planifiée."""
         activite = self.get_object()
         ancien_statut = activite.statut
         activite.statut = Activite.Statut.VALIDEE
@@ -88,7 +83,6 @@ class ActiviteViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def participants_attendus(self, request, pk=None):
         """
-        GET /api/activites/{id}/participants_attendus/
         Liste les élèves inscrits (validés) au club organisateur, avec leur statut
         de présence déjà enregistré pour cette activité (s'il existe).
         """

@@ -26,8 +26,7 @@ class EstGestionnaireStrict(permissions.BasePermission):
     """
     Version stricte réservée aux seuls gestionnaires (administrateur, responsable
     pédagogique, encadreur) — sans le parent. À utiliser pour les vues qui n'ont
-    pas de logique de filtrage par enfant (ex: PredictionParticipationView,
-    ClubEnDifficulteView, RapportDetailleView).
+    pas de logique de filtrage par enfant
     """
 
     ROLES_AUTORISES = ['administrateur', 'proviseur', 'encadreur']

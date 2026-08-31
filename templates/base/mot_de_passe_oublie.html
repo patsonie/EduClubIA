@@ -50,7 +50,7 @@
             const alerte = document.getElementById('alerte-message');
 
             try {
-                const reponse = await fetch('http://127.0.0.1:8000/api/auth/mot-de-passe-oublie/', {
+                const reponse = await fetch(window.location.origin + '/api/auth/mot-de-passe-oublie/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email }),

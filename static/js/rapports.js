@@ -50,7 +50,7 @@ async function telechargerRapportPDF() {
         : '/predictions/rapport-detaille/pdf/';
 
     const token = obtenirToken();
-    const reponse = await fetch(`http://127.0.0.1:8000/api${endpoint}`, {
+    const reponse = await fetch(`${window.location.origin}/api${endpoint}`, {
         headers: { 'Authorization': `Bearer ${token}` },
     });
 

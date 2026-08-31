@@ -59,7 +59,8 @@ function connecterWebSocket(salonId) {
     if (socketActuel) socketActuel.close();
 
     const token = obtenirToken();
-    socketActuel = new WebSocket(`ws://127.0.0.1:8000/ws/messagerie/${salonId}/?token=${token}`);
+    const protocoleWS = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    socketActuel = new WebSocket(`${protocoleWS}//${window.location.host}/ws/messagerie/${salonId}/?token=${token}`);
 
     socketActuel.onmessage = (event) => {
         const message = JSON.parse(event.data);

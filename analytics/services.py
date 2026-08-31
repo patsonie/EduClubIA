@@ -79,10 +79,6 @@ def calculer_risques_desengagement_tous_eleves():
 
     return resultats
 
-
-
-
-
 def predire_nombre_participants(activite):
     """
     PIPELINE DE PRÉDICTION : utilise le modèle entraîné et persisté si
@@ -123,8 +119,7 @@ def predire_nombre_participants(activite):
 
     return min(prediction, activite.club.nombre_max_membres)
     
-
-
+    
 def detecter_clubs_en_difficulte(seuil_baisse=30):
     """
     Détecte les clubs ayant une baisse d'activité significative, en comparant :
