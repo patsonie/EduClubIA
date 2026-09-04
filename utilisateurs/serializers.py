@@ -5,6 +5,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 import secrets
+from django.utils import timezone
 
 
 class InscriptionSerializer(serializers.ModelSerializer):
@@ -126,9 +127,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
         elif role == Utilisateur.Role.PROVISEUR:
             statut = Utilisateur.StatutValidation.EN_ATTENTE
             # Génération automatique du code dès la création — jamais manuellement par l'admin
-            validated_data['code_validation_compte'] = (
-                f"RP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
-            )
+            validated_data['code_validation_compte'] = f"RP-{secrets.token_hex(8).upper()}"
         else:
             statut = Utilisateur.StatutValidation.VALIDE
 
@@ -339,8 +338,12 @@ class ValidationCodeSerializer(serializers.Serializer):
     code = serializers.CharField()
 
     def validate(self, attrs):
-        from django.utils import timezone
+        
+        if attrs.get('matricule') == '':
+            attrs['matricule'] = None
 
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Les deux mots de passe ne correspondent pas."})
         utilisateur = Utilisateur.objects.filter(
             email=attrs['email'], role=Utilisateur.Role.PROVISEUR
         ).first()

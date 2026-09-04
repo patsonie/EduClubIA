@@ -1,0 +1,112 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block titre %}Présences{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Habillage propre à la page, basé sur les variables globales du thème. */
+    .page-presences .hero-presences {
+        background: linear-gradient(135deg, var(--couleur-primaire), var(--couleur-primaire-fonce));
+        border-radius: var(--rayon-carte);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(88, 73, 194, 0.22);
+    }
+    .page-presences .hero-presences .texte-secondaire { color: rgba(255, 255, 255, 0.78); }
+    .page-presences .statut-resume {
+        border-radius: 10px;
+        padding: .45rem .7rem;
+        font-size: .82rem;
+        font-weight: 600;
+    }
+    .page-presences .statut-present { background: #dcfce7; color: #15803d; }
+    .page-presences .statut-absent { background: #fee2e2; color: #b91c1c; }
+    .page-presences .statut-autre { background: #fef3c7; color: #a16207; }
+    .page-presences .ligne-participant td:first-child { min-width: 200px; }
+    .page-presences .etat-enregistrement { min-height: 1.5rem; }
+    /* Variantes lisibles lorsque le thème sombre est actif. */
+    [data-theme="dark"] .page-presences .statut-present { background: rgba(22, 163, 74, .18); color: #86efac; }
+    [data-theme="dark"] .page-presences .statut-absent { background: rgba(220, 38, 38, .18); color: #fca5a5; }
+    [data-theme="dark"] .page-presences .statut-autre { background: rgba(245, 158, 11, .18); color: #fde68a; }
+</style>
+{% endblock %}
+
+{% block contenu %}
+<section class="page-presences">
+    <!-- En-tête explicatif de la fonctionnalité. -->
+    <div class="hero-presences p-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-clipboard2-check fs-4"></i>
+                    <span class="fw-semibold">Suivi pédagogique</span>
+                </div>
+                <h4 class="fw-bold mb-1">Gestion des présences</h4>
+                <p class="texte-secondaire mb-0">Sélectionnez une activité puis enregistrez la présence des élèves inscrits.</p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-shield-check fs-4"></i>
+                <span class="small">Enregistrement sécurisé</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sélection de l'activité dont les présences sont à renseigner. -->
+    <div class="carte p-4 mb-4">
+        <label for="select-activite-presence" class="form-label fw-semibold">Activité concernée</label>
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-8">
+                <select class="form-select" id="select-activite-presence" aria-describedby="aide-activite-presence">
+                    <option value="">Chargement des activités…</option>
+                </select>
+                <div id="aide-activite-presence" class="form-text">Seules les activités existantes de la plateforme sont proposées.</div>
+            </div>
+            <div class="col-lg-4">
+                <div id="etat-chargement-presences" class="small text-muted" role="status"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des élèves, affichée uniquement après le choix d'une activité. -->
+    <div class="carte p-4 d-none" id="conteneur-presence">
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+            <div>
+                <p class="text-muted small text-uppercase fw-semibold mb-1">Activité sélectionnée</p>
+                <h5 class="fw-bold mb-0" id="titre-activite-selectionnee">—</h5>
+            </div>
+            <div class="d-flex flex-wrap gap-2" aria-label="Résumé des présences">
+                <span class="statut-resume statut-present"><i class="bi bi-check-circle-fill me-1"></i>Présents : <span id="compteur-presents">0</span></span>
+                <span class="statut-resume statut-absent"><i class="bi bi-x-circle-fill me-1"></i>Absents : <span id="compteur-absents">0</span></span>
+                <span class="statut-resume statut-autre"><i class="bi bi-clock-history me-1"></i>Retards / excusés : <span id="compteur-autres">0</span></span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover mb-3">
+                <thead>
+                    <tr class="text-muted small text-uppercase">
+                        <th>Élève</th>
+                        <th>Classe</th>
+                        <th class="text-lg-end">Statut de présence</th>
+                    </tr>
+                </thead>
+                <tbody id="tableau-presences">
+                    <tr><td colspan="3" class="text-center text-muted py-4">Choisissez une activité.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 border-top pt-3">
+            <p class="etat-enregistrement text-muted small mb-0" id="etat-enregistrement-presences" role="status"></p>
+            <button type="button" class="btn btn-primaire-app" id="btn-enregistrer-presences" disabled>
+                <i class="bi bi-check2-all me-1"></i>Enregistrer les présences
+            </button>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Logique de chargement et d'enregistrement des présences. -->
+<script src="{% static 'js/presences.js' %}"></script>
+{% endblock %}

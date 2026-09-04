@@ -10,7 +10,13 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     Modèle utilisateur personnalisé pour la plateforme de gestion des clubs.
     Rôles possibles : administrateur, proviseur, encadreur, eleve, parent d'élève.
     """
-
+    def save(self, *args, **kwargs):
+            # Garantit qu'un matricule vide est stocké comme NULL, jamais comme chaîne
+        # vide, pour préserver la contrainte d'unicité sans faux conflits.
+        if self.matricule == '':
+            self.matricule = None
+        super().save(*args, **kwargs)
+        
     class Role(models.TextChoices):
         ADMINISTRATEUR = 'administrateur', 'Administrateur'
         PROVISEUR = 'proviseur', 'Responsable pédagogique'
@@ -236,3 +242,4 @@ class CodeInvitation(models.Model):
     def __str__(self):
         statut = "utilisé" if self.utilise else "disponible"
         return f"{self.code} ({self.get_role_cible_display()}, {statut})"
+    

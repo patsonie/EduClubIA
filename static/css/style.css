@@ -300,6 +300,17 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
     --couleur-succes: #34d399;
     --couleur-danger: #f87171;
     --couleur-warning: #fbbf24;
+
+    /* Variables Bootstrap pour les composants non personnalisés. */
+    --bs-body-color: #f0eefd;
+    --bs-body-bg: #16151f;
+    --bs-emphasis-color: #ffffff;
+    --bs-secondary-color: #b3adc7;
+    --bs-secondary-bg: #262436;
+    --bs-tertiary-bg: #1a1926;
+    --bs-border-color: rgba(255,255,255,0.12);
+    --bs-link-color: #b9b2ff;
+    --bs-link-hover-color: #d3ceff;
 }
 
 [data-theme="dark"] body { background-color: var(--couleur-fond); color: var(--couleur-texte); }
@@ -323,6 +334,9 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
 }
 [data-theme="dark"] .form-control:focus, [data-theme="dark"] .form-select:focus { background-color: #262436; color: var(--couleur-texte); }
 [data-theme="dark"] .form-control::placeholder { color: #6b7280; }
+[data-theme="dark"] .form-control:disabled,
+[data-theme="dark"] .form-select:disabled { background-color: #201f2d; color: #aaa5bd; }
+[data-theme="dark"] .form-select { color-scheme: dark; }
 [data-theme="dark"] .form-check-input { background-color: #262436; border-color: rgba(255,255,255,0.2); }
 [data-theme="dark"] .form-label, [data-theme="dark"] label { color: var(--couleur-texte); }
 
@@ -338,6 +352,7 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
 [data-theme="dark"] .dropdown-divider { border-color: rgba(255,255,255,0.08); }
 [data-theme="dark"] .modal-content { background-color: var(--couleur-carte); color: var(--couleur-texte); }
 [data-theme="dark"] .modal-header, [data-theme="dark"] .modal-footer { border-color: rgba(255,255,255,0.08); }
+[data-theme="dark"] .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
 
 /* Onglets / pilules / listes */
 [data-theme="dark"] .nav-tabs { border-color: rgba(255,255,255,0.08); }
@@ -357,6 +372,23 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
 [data-theme="dark"] .breadcrumb-item.active { color: var(--couleur-texte-secondaire); }
 [data-theme="dark"] .breadcrumb-item a { color: var(--couleur-primaire); }
 [data-theme="dark"] .badge.bg-light { background-color: #262436 !important; color: var(--couleur-texte) !important; }
+[data-theme="dark"] .text-muted,
+[data-theme="dark"] .text-secondary { color: #b3adc7 !important; }
+[data-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: var(--couleur-carte);
+    border-color: rgba(255,255,255,0.12) rgba(255,255,255,0.12) var(--couleur-carte);
+    color: #c5beff;
+}
+[data-theme="dark"] .pagination .page-link {
+    background-color: var(--couleur-carte);
+    border-color: rgba(255,255,255,0.12);
+    color: #c5beff;
+}
+[data-theme="dark"] .pagination .page-item.active .page-link {
+    background-color: var(--couleur-primaire);
+    border-color: var(--couleur-primaire);
+    color: #fff;
+}
 
 /* Progress bars */
 [data-theme="dark"] .progress { background-color: #262436; }
@@ -412,6 +444,121 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
 .avatar-eleve, .rounded-circle { border-radius: 50% !important; }
 
 /* ===== États d'interaction : hover / focus / active / disabled ===== */
+
+/* ===== Système de boutons applicatif =====
+   Action principale : violet ; action secondaire : contour ; actions sensibles :
+   vert / rouge. Ces classes peuvent être ajoutées aux boutons Bootstrap existants. */
+.btn-primaire,
+.btn-primaire-app,
+.btn-primary {
+    background: linear-gradient(135deg, #6C5CE7, #5849c2);
+    color: #fff;
+    border: 1px solid transparent;
+    box-shadow: 0 5px 14px rgba(88, 73, 194, 0.24);
+}
+
+.btn-primaire:hover,
+.btn-primaire-app:hover,
+.btn-primary:hover {
+    background: linear-gradient(135deg, #7b6cf0, #5849c2);
+    color: #fff;
+    box-shadow: 0 9px 20px rgba(88, 73, 194, 0.30);
+    transform: translateY(-2px);
+}
+
+.btn-secondaire,
+.btn-outline {
+    background: transparent;
+    color: var(--couleur-primaire);
+    border: 1px solid var(--couleur-primaire);
+    box-shadow: none;
+}
+
+.btn-secondaire:hover,
+.btn-outline:hover {
+    background: var(--couleur-primaire-claire);
+    color: var(--couleur-primaire-fonce);
+    border-color: var(--couleur-primaire-fonce);
+    transform: translateY(-2px);
+}
+
+.btn-succes,
+.btn-success {
+    background: #16a34a;
+    color: #fff;
+    border: 1px solid transparent;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.20);
+}
+
+.btn-succes:hover,
+.btn-success:hover {
+    background: #15803d;
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: #fff;
+    border: 1px solid transparent;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.18);
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+.btn-icone {
+    width: 2.35rem;
+    height: 2.35rem;
+    padding: 0;
+    justify-content: center;
+    border: 1px solid rgba(30, 27, 46, 0.10);
+    background: var(--couleur-carte);
+    color: var(--couleur-texte-secondaire);
+    box-shadow: none;
+}
+
+.btn-icone:hover {
+    background: var(--couleur-primaire-claire);
+    border-color: transparent;
+    color: var(--couleur-primaire);
+    transform: translateY(-2px);
+}
+
+.btn:focus-visible,
+button:focus-visible,
+input[type="submit"]:focus-visible {
+    outline: 3px solid rgba(108, 92, 231, 0.45);
+    outline-offset: 3px;
+}
+
+[data-theme="dark"] .btn-secondaire,
+[data-theme="dark"] .btn-outline {
+    background: #262436;
+    border-color: #8f87d8;
+    color: #c5beff;
+}
+
+[data-theme="dark"] .btn-secondaire:hover,
+[data-theme="dark"] .btn-outline:hover {
+    background: #342f52;
+    border-color: #b9b2ff;
+    color: #fff;
+}
+
+[data-theme="dark"] .btn-icone {
+    background: #262436;
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #b3adc7;
+}
+
+[data-theme="dark"] .btn-icone:hover {
+    background: #342f52;
+    color: #d3ceff;
+}
 
 .btn {
     transition: transform 0.08s ease, filter 0.15s ease, box-shadow 0.15s ease;

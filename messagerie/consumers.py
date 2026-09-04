@@ -14,7 +14,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.groupe_salon = f'salon_{self.salon_id}'
         self.user = self.scope['user']
 
-        if not self.user or not self.user.is_authenticated:
+        if not self.user or not self.user.is_authenticated or not self.user.is_active:
             await self.close(code=4001)
             return
 
@@ -31,10 +31,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.groupe_salon, self.channel_name)
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
+        try:
+            data = json.loads(text_data)
+        except (TypeError, json.JSONDecodeError):
+            return
         contenu = data.get('contenu', '').strip()
 
-        if not contenu:
+        if not contenu or len(contenu) > 2000:
             return
 
         message = await self.enregistrer_message(contenu)
@@ -68,6 +71,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             salon = SalonDiscussion.objects.get(id=self.salon_id)
         except SalonDiscussion.DoesNotExist:
+            return False
+
+        if (
+            not self.user.is_active
+            or self.user.statut_validation != 'valide'
+        ):
             return False
 
         if self.user.role in ['administrateur', 'proviseur', 'encadreur']:

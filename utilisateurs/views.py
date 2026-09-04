@@ -31,7 +31,7 @@ from .services import construire_dashboard_parent
 
 def get_ip_client(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
+    if settings.USE_X_FORWARDED_FOR and x_forwarded_for:
         return x_forwarded_for.split(',')[0]
     return request.META.get('REMOTE_ADDR')
 
@@ -505,7 +505,7 @@ class EnvoyerCodeValidationView(APIView):
         )
 
         return Response(
-            {"message": f"Code d'invitation envoyé à {utilisateur.email}.", "code": utilisateur.code_validation_compte},
+            {"message": f"Code d'invitation envoyé à {utilisateur.email}."},
             status=status.HTTP_200_OK,
         )
 
@@ -554,37 +554,33 @@ class RenvoyerCodeExpireView(APIView):
         from django.utils import timezone
         from datetime import timedelta
 
-        email = request.data.get('email')
+        serializer = DemandeReinitialisationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
         utilisateur = Utilisateur.objects.filter(email=email, role=Utilisateur.Role.PROVISEUR).first()
 
-        if not utilisateur:
-            return Response({"error": "Compte introuvable."}, status=status.HTTP_404_NOT_FOUND)
+        if utilisateur and utilisateur.statut_validation == Utilisateur.StatutValidation.CODE_ENVOYE:
+            utilisateur.code_validation_compte = f"RP-{secrets.token_hex(8).upper()}"
+            utilisateur.date_code_envoye = timezone.now()
+            utilisateur.date_expiration_code = timezone.now() + timedelta(hours=24)
+            utilisateur.save()
 
-        if utilisateur.statut_validation != Utilisateur.StatutValidation.CODE_ENVOYE:
-            return Response(
-                {"error": "Aucun code actif à renouveler pour ce compte."},
-                status=status.HTTP_400_BAD_REQUEST,
+            send_mail(
+                subject="EduClubIA — Nouveau code d'invitation",
+                message=(
+                    f"Bonjour {utilisateur.prenom},\n\n"
+                    f"Voici votre nouveau code d'invitation (valable 24 heures) :\n\n"
+                    f"{utilisateur.code_validation_compte}\n\n"
+                    f"http://127.0.0.1:8000/validation-compte/"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[utilisateur.email],
+                fail_silently=True,
             )
 
-        utilisateur.code_validation_compte = f"RP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
-        utilisateur.date_code_envoye = timezone.now()
-        utilisateur.date_expiration_code = timezone.now() + timedelta(hours=24)
-        utilisateur.save()
-
-        send_mail(
-            subject="EduClubIA — Nouveau code d'invitation",
-            message=(
-                f"Bonjour {utilisateur.prenom},\n\n"
-                f"Voici votre nouveau code d'invitation (valable 24 heures) :\n\n"
-                f"{utilisateur.code_validation_compte}\n\n"
-                f"http://127.0.0.1:8000/validation-compte/"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[utilisateur.email],
-            fail_silently=True,
-        )
-
+        # Même réponse dans tous les cas : ne révèle ni l'existence d'un compte,
+        # ni son état de validation.
         return Response(
-            {"message": f"Un nouveau code a été envoyé à {utilisateur.email}."},
+            {"message": "Si un compte est éligible, un nouveau code lui a été envoyé."},
             status=status.HTTP_200_OK,
         )

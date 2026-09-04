@@ -3,6 +3,7 @@
     const theme = localStorage.getItem('theme') || 'clair';
     if (theme === 'sombre') {
         document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
     }
 })();
 
@@ -21,10 +22,12 @@ function initialiserBoutonTheme() {
 
         if (estSombre) {
             document.documentElement.removeAttribute('data-theme');
+            document.documentElement.removeAttribute('data-bs-theme');
             localStorage.setItem('theme', 'clair');
             if (icone) icone.className = 'bi bi-moon-fill';
         } else {
             document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
             localStorage.setItem('theme', 'sombre');
             if (icone) icone.className = 'bi bi-sun-fill';
         }

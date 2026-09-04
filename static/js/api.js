@@ -84,9 +84,11 @@ function appliquerThemeInitial() {
     const icone = document.getElementById('icone-theme');
     if (themeSauvegarde === 'sombre') {
         document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
         if (icone) icone.className = 'bi bi-sun-fill';
     } else {
         document.documentElement.removeAttribute('data-theme');
+        document.documentElement.removeAttribute('data-bs-theme');
         if (icone) icone.className = 'bi bi-moon-fill';
     }
 }

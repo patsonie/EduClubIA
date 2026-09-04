@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Inscription, HistoriqueInscription
 from .serializers import InscriptionSerializer
@@ -38,11 +39,14 @@ class InscriptionViewSet(viewsets.ModelViewSet):
         return context
 
     def perform_create(self, serializer):
-        # Un élève s'inscrit toujours lui-même
+        # Un élève s'inscrit toujours lui-même. Les gestionnaires peuvent agir
+        # pour le compte d'un élève ; les parents ne peuvent pas créer de lien.
         if self.request.user.role == 'eleve':
             inscription = serializer.save(eleve=self.request.user)
-        else:
+        elif self.request.user.role in ['administrateur', 'proviseur', 'encadreur']:
             inscription = serializer.save()
+        else:
+            raise PermissionDenied("Vous n'êtes pas autorisé à créer une inscription.")
 
         HistoriqueInscription.objects.create(
             inscription=inscription,
@@ -78,13 +82,33 @@ class InscriptionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):
         """Réservé aux gestionnaires (vérifié via has_object_permission)."""
+        if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
+            raise PermissionDenied("Seuls les gestionnaires peuvent valider une inscription.")
         return self._changer_statut(request, pk, Inscription.Statut.VALIDEE, "Inscription validée")
 
     @action(detail=True, methods=['post'])
     def refuser(self, request, pk=None):
+        if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
+            raise PermissionDenied("Seuls les gestionnaires peuvent refuser une inscription.")
         return self._changer_statut(request, pk, Inscription.Statut.REFUSEE, "Inscription refusée")
 
     @action(detail=True, methods=['post'])
     def se_desinscrire(self, request, pk=None):
         """L'élève peut se désinscrire lui-même de son propre club."""
+        inscription = self.get_object()
+        if (
+            request.user.role not in ['administrateur', 'proviseur', 'encadreur']
+            and inscription.eleve_id != request.user.id
+        ):
+            raise PermissionDenied("Vous ne pouvez désinscrire que votre propre compte.")
         return self._changer_statut(request, pk, Inscription.Statut.ANNULEE, "Désinscription")
+
+    def update(self, request, *args, **kwargs):
+        if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
+            raise PermissionDenied("Utilisez l'action de désinscription pour annuler votre inscription.")
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
+            raise PermissionDenied("Vous n'êtes pas autorisé à supprimer une inscription.")
+        return super().destroy(request, *args, **kwargs)

@@ -6,6 +6,7 @@ from .serializers import RecommandationSerializer
 from .services import calculer_recommandations_content_based
 from .services import calculer_recommandations_hybrides
 import json
+import logging
 import time
 from django.utils import timezone
 from .models import HistoriqueEntrainement
@@ -15,6 +16,8 @@ from .ml_pipeline import (
     entrainer_modele_collaboratif, valider_modele_collaboratif,
 )
 from analytics.ml_pipeline import entrainer_modele_participation, valider_modele_participation
+
+logger = logging.getLogger(__name__)
 
 
 class RecommandationListeView(APIView):
@@ -120,17 +123,18 @@ class ReentrainementIAView(APIView):
                 "historique_id": historique.id,
             }, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Échec de l'entraînement des modèles IA")
             duree = round(time.time() - debut, 2)
             HistoriqueEntrainement.objects.create(
                 type_declenchement=type_declenchement,
                 statut=HistoriqueEntrainement.Statut.ECHEC,
-                message_erreur=str(e),
+                message_erreur="Erreur interne lors de l'entraînement. Consultez les journaux serveur.",
                 declenche_par=request.user if request.user.is_authenticated else None,
                 duree_secondes=duree,
             )
             return Response(
-                {"error": f"Échec de l'entraînement : {str(e)}"},
+                {"error": "Échec de l'entraînement. Consultez les journaux serveur."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from clubs.models import Club
 from activites.models import Activite
+from utilisateurs.validators import valider_fichier_message
 
 
 class SalonDiscussion(models.Model):
@@ -66,7 +67,10 @@ class Message(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='messages_envoyes'
     )
     contenu = models.TextField(blank=True)
-    fichier = models.FileField(upload_to='messagerie/fichiers/', blank=True, null=True)
+    fichier = models.FileField(
+        upload_to='messagerie/fichiers/', blank=True, null=True,
+        validators=[valider_fichier_message],
+    )
     date_envoi = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -1,12 +1,14 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .models import SalonDiscussion, Message
 from .serializers import SalonDiscussionSerializer, MessageSerializer
 from .permissions import EstMembreDuSalon
 from inscriptions.models import Inscription
+from utilisateurs.validators import valider_fichier_message
 
 
 class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -48,10 +50,19 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
         if not fichier:
             return Response({"error": "Aucun fichier fourni."}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            valider_fichier_message(fichier)
+        except Exception as exc:
+            raise ValidationError({"fichier": list(getattr(exc, 'messages', [str(exc)]))})
+
+        contenu = request.data.get('contenu', '')
+        if len(contenu) > 2000:
+            raise ValidationError({"contenu": "Le message ne doit pas dépasser 2 000 caractères."})
+
         message = Message.objects.create(
             salon=salon,
             expediteur=request.user,
-            contenu=request.data.get('contenu', ''),
+            contenu=contenu,
             fichier=fichier,
         )
 

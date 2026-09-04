@@ -4,6 +4,7 @@ from .models import SalonDiscussion, Message
 
 class MessageSerializer(serializers.ModelSerializer):
     expediteur_nom = serializers.CharField(source='expediteur.nom_complet', read_only=True)
+    contenu = serializers.CharField(required=False, allow_blank=True, max_length=2000)
 
     class Meta:
         model = Message

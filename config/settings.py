@@ -5,8 +5,10 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost').split(',')
+DEBUG = config('DEBUG', default=False, cast=bool)
+ALLOWED_HOSTS = [host.strip() for host in config(
+    'ALLOWED_HOSTS', default='127.0.0.1,localhost'
+).split(',') if host.strip()]
 RENDER_EXTERNAL_HOSTNAME = config('RENDER_EXTERNAL_HOSTNAME', default='')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -113,12 +115,14 @@ REST_FRAMEWORK = {
     },
 }
 
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
-else:
-    CORS_ALLOWED_ORIGINS = [
-        f"https://{RENDER_EXTERNAL_HOSTNAME}",
-    ] if RENDER_EXTERNAL_HOSTNAME else []
+# L'interface est servie depuis le même domaine que l'API : CORS n'est donc pas
+# nécessaire par défaut. Les origines externes doivent être déclarées explicitement.
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in config(
+    'CORS_ALLOWED_ORIGINS', default=''
+).split(',') if origin.strip()]
+if RENDER_EXTERNAL_HOSTNAME:
+    CORS_ALLOWED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+CORS_ALLOW_CREDENTIALS = False
 
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Douala'
@@ -128,11 +132,32 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 WHITENOISE_MANIFEST_STRICT = False
+
+# En-têtes applicables dans tous les environnements. Les options HTTPS ne sont
+# activées qu'en production afin de ne pas casser le serveur de développement.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+USE_X_FORWARDED_FOR = config('USE_X_FORWARDED_FOR', default=False, cast=bool)
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -144,6 +169,8 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
+    # Un changement de mot de passe invalide immédiatement les JWT existants.
+    'CHECK_REVOKE_TOKEN': True,
 }
 
 
