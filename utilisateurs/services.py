@@ -60,7 +60,13 @@ def construire_dashboard_parent(parent):
             ],
         })
 
+    from .models import RelationParentEleve
+    demandes = RelationParentEleve.objects.filter(
+        parent=parent, statut=RelationParentEleve.Statut.EN_ATTENTE
+    ).select_related('enfant')
+
     return {
         "nombre_enfants": len(enfants_data),
         "enfants": enfants_data,
+        "demandes_en_attente": [d.enfant.nom_complet for d in demandes],
     }

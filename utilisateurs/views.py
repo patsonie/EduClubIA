@@ -28,6 +28,8 @@ from .serializers import (
 from rest_framework.exceptions import PermissionDenied
 from .permissions import EstAdminOuProviseur, EstAdministrateur, LoginRateThrottle, ChangementMotDePasseThrottle
 from .authentication import revoquer_jetons
+from notifications.models import Notification
+from notifications.services import creer_notification
 from .services import construire_dashboard_parent
 
 
@@ -198,6 +200,16 @@ class ParentViewSet(viewsets.ModelViewSet):
             demande.statut = RelationParentEleve.Statut.VALIDEE
             demande.cree_par = request.user
             demande.save()
+            JournalActivite.objects.create(
+                utilisateur=request.user, action="Rattachement parent validé",
+                details=f"parent={parent.id} enfant={demande.enfant_id}",
+                adresse_ip=get_ip_client(request),
+            )
+            creer_notification(
+                parent, Notification.TypeNotification.AUTRE,
+                "Rattachement validé",
+                f"Votre rattachement à {demande.enfant.nom_complet} a été validé. Vous pouvez désormais suivre ses activités.",
+            )
             return Response(RelationParentEleveSerializer(demande).data, status=status.HTTP_200_OK)
 
         data = {'parent': parent.id, 'enfant': enfant_id}
@@ -205,6 +217,30 @@ class ParentViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(cree_par=request.user, statut=RelationParentEleve.Statut.VALIDEE)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def refuser_rattachement(self, request, pk=None):
+        """POST /api/auth/parents/{id}/refuser_rattachement/  body: {"enfant": <id_eleve>}"""
+        parent = self.get_object()
+        demande = RelationParentEleve.objects.filter(
+            parent=parent, enfant_id=request.data.get('enfant'),
+            statut=RelationParentEleve.Statut.EN_ATTENTE,
+        ).select_related('enfant').first()
+        if not demande:
+            return Response({"error": "Demande introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        nom_enfant = demande.enfant.nom_complet
+        demande.delete()
+        JournalActivite.objects.create(
+            utilisateur=request.user, action="Rattachement parent refusé",
+            details=f"parent={parent.id}", adresse_ip=get_ip_client(request),
+        )
+        creer_notification(
+            parent, Notification.TypeNotification.AUTRE,
+            "Rattachement refusé",
+            f"Votre demande de rattachement à {nom_enfant} n'a pas pu être validée. Contactez l'administration.",
+        )
+        return Response({"message": "Demande refusée."}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
     def demandes_rattachement(self, request):

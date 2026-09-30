@@ -25,6 +25,24 @@
     </table>
 </div>
 
+<h5 class="fw-bold mt-5 mb-3">Demandes de rattachement parent → enfant</h5>
+<p class="text-muted small">
+    Un parent a indiqué le matricule de son enfant à l'inscription. Vérifiez la filiation
+    (registre de l'établissement, pièce d'identité, appel au parent) avant de valider.
+</p>
+<div class="carte">
+    <table class="table mb-0">
+        <thead>
+            <tr class="text-muted small text-uppercase">
+                <th>Parent</th><th>Contact</th><th>Lien déclaré</th><th>Élève</th><th>Demandé le</th><th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tableau-rattachements">
+            <tr><td colspan="6" class="text-center text-muted py-4">Chargement...</td></tr>
+        </tbody>
+    </table>
+</div>
+
 <div class="modal fade" id="modalRefus" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -50,4 +68,5 @@
 
 {% block extra_js %}
 <script src="{% static 'js/comptes_en_attente.js' %}"></script>
+<script src="{% static 'js/rattachements_parents.js' %}"></script>
 {% endblock %}

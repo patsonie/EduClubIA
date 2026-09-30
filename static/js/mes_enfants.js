@@ -69,6 +69,13 @@ async function chargerMesEnfants() {
     const data = await appelApi('/auth/dashboard-parent/');
     const conteneur = document.getElementById('conteneur-enfants');
 
+    const bandeau = document.getElementById('bandeau-demandes');
+    if (data && data.demandes_en_attente && data.demandes_en_attente.length) {
+        bandeau.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Rattachement en attente de validation par l\'administration pour : '
+            + data.demandes_en_attente.map(echapperHTML).join(', ') + '.';
+        bandeau.classList.remove('d-none');
+    }
+
     if (!data || data.nombre_enfants === 0) {
         conteneur.innerHTML = `
             <div class="col-12 text-center text-muted py-5">

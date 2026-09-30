@@ -259,11 +259,20 @@ class RelationParentEleveSerializer(serializers.ModelSerializer):
     """Serializer pour associer/dissocier un parent et un élève (usage admin)."""
 
     parent_nom = serializers.CharField(source='parent.nom_complet', read_only=True)
+    parent_email = serializers.CharField(source='parent.email', read_only=True)
+    parent_telephone = serializers.CharField(source='parent.telephone', read_only=True)
+    type_lien_eleve = serializers.CharField(source='parent.type_lien_eleve', read_only=True)
     enfant_nom = serializers.CharField(source='enfant.nom_complet', read_only=True)
+    enfant_matricule = serializers.CharField(source='enfant.matricule', read_only=True)
+    enfant_classe = serializers.CharField(source='enfant.classe', read_only=True)
 
     class Meta:
         model = RelationParentEleve
-        fields = ['id', 'parent', 'parent_nom', 'enfant', 'enfant_nom', 'statut', 'date_creation', 'cree_par']
+        fields = [
+            'id', 'parent', 'parent_nom', 'parent_email', 'parent_telephone', 'type_lien_eleve',
+            'enfant', 'enfant_nom', 'enfant_matricule', 'enfant_classe',
+            'statut', 'date_creation', 'cree_par',
+        ]
         read_only_fields = ['id', 'statut', 'date_creation', 'cree_par']
 
     def validate_parent(self, value):

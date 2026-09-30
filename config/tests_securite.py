@@ -347,3 +347,54 @@ class AccesNonAuthentifie(TestCase):
                     '/api/predictions/statistiques-globales/', '/api/auth/utilisateurs/',
                     '/api/auth/parents/', '/api/auth/profil/', '/api/annees-scolaires/']:
             self.assertEqual(client.get(url).status_code, 401, url)
+
+
+class ValidationRattachements(BaseDonnees):
+    def setUp(self):
+        super().setUp()
+        self.parent2 = creer_utilisateur("par2@t.cm", Utilisateur.Role.PARENT, type_lien_eleve="Mère", telephone="699000000")
+        self.demande = RelationParentEleve.objects.create(
+            parent=self.parent2, enfant=self.eleve2, statut=RelationParentEleve.Statut.EN_ATTENTE,
+        )
+
+    def test_liste_des_demandes_reservee_aux_gestionnaires(self):
+        url = '/api/auth/parents/demandes_rattachement/'
+        self.auth(self.proviseur)
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.data), 1)
+        self.assertEqual(r.data[0]['enfant_matricule'], 'M2')
+        self.assertEqual(r.data[0]['type_lien_eleve'], 'Mère')
+        for user in (self.enc1, self.eleve1, self.parent):
+            self.auth(user)
+            self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_validation_donne_acces_et_notifie(self):
+        self.assertEqual(self.parent2.enfants.count(), 0)
+        self.auth(self.admin)
+        r = self.client.post(f'/api/auth/parents/{self.parent2.id}/lier_enfant/', {'enfant': self.eleve2.id}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.parent2.enfants.count(), 1)
+        self.assertTrue(self.parent2.notifications.filter(titre="Rattachement validé").exists())
+        self.assertEqual(self.client.get('/api/auth/parents/demandes_rattachement/').data, [])
+
+    def test_refus_supprime_la_demande_et_notifie(self):
+        self.auth(self.proviseur)
+        r = self.client.post(f'/api/auth/parents/{self.parent2.id}/refuser_rattachement/', {'enfant': self.eleve2.id}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(RelationParentEleve.objects.filter(pk=self.demande.pk).exists())
+        self.assertEqual(self.parent2.enfants.count(), 0)
+        self.assertTrue(self.parent2.notifications.filter(titre="Rattachement refusé").exists())
+
+    def test_refus_impossible_sur_un_lien_deja_valide(self):
+        self.auth(self.admin)
+        r = self.client.post(f'/api/auth/parents/{self.parent.id}/refuser_rattachement/', {'enfant': self.eleve1.id}, format='json')
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(self.parent.enfants.count(), 1)
+
+    def test_le_parent_voit_sa_demande_en_attente(self):
+        self.auth(self.parent2)
+        r = self.client.get('/api/auth/dashboard-parent/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['nombre_enfants'], 0)
+        self.assertEqual(r.data['demandes_en_attente'], [self.eleve2.nom_complet])
