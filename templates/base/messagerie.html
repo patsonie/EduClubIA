@@ -35,14 +35,14 @@
 
     <div class="d-flex flex-column flex-grow-1 panneau-conversation">
         <div class="p-3 border-bottom d-flex align-items-center gap-2" id="entete-conversation">
-            <button class="btn btn-sm btn-light d-md-none" id="btn-retour-conversation"><i class="bi bi-arrow-left"></i></button>
+            <button class="btn btn-sm btn-light d-md-none" id="btn-retour-conversation" type="button" aria-label="Retour aux conversations"><i class="bi bi-arrow-left" aria-hidden="true"></i></button>
             <span class="text-muted small">Sélectionnez une conversation</span>
         </div>
         <div class="zone-messages d-flex flex-column" id="zone-messages"></div>
         <div class="p-3 border-top d-none" id="zone-saisie">
             <form id="formulaire-message" class="d-flex gap-2">
                 <input type="text" class="form-control" id="champ-message" placeholder="Écrire un message...">
-                <button type="submit" class="btn btn-primaire-app"><i class="bi bi-send"></i></button>
+                <button type="submit" class="btn btn-primaire-app" aria-label="Envoyer le message"><i class="bi bi-send" aria-hidden="true"></i></button>
             </form>
         </div>
     </div>

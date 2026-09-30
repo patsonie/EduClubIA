@@ -1,32 +1,32 @@
 {% load static %}
-<nav class="navbar navbar-lycee navbar-expand-lg" style="height: 64px;">
-    <div class="container-fluid px-4">
-        <button class="btn btn-sm d-lg-none me-2" id="btn-ouvrir-sidebar" style="border: 1px solid rgba(0,0,0,0.08);">
-            <i class="bi bi-list" style="font-size: 1.2rem;"></i>
+<nav class="navbar navbar-lycee navbar-expand-lg" style="height: 64px;" aria-label="Barre principale">
+    <div class="container-fluid px-2 px-md-4">
+        <button class="btn btn-sm d-lg-none me-2 btn-icone" id="btn-ouvrir-sidebar" type="button" aria-label="Ouvrir le menu" aria-controls="sidebar-menu" style="border: 1px solid rgba(0,0,0,0.08);">
+            <i class="bi bi-list" style="font-size: 1.2rem;" aria-hidden="true"></i>
         </button>
-        <a class="navbar-brand d-flex align-items-center" href="{% url 'dashboard' %}">
-            <img src="{% static 'images/logo.jpeg' %}" alt="Logo" height="34" class="me-2">
-            Gestion Clubs Lycée
+        <a class="navbar-brand d-flex align-items-center" href="{% url 'dashboard' %}" aria-label="EduClubIA — tableau de bord">
+            <img src="{% static 'images/logo.jpeg' %}" alt="EduClubIA" height="44" class="me-2 logo-navbar">
+            <span class="d-none d-sm-inline">Gestion Clubs Lycée</span>
         </a>
 
-        <div class="d-flex align-items-center ms-auto gap-3">
-            <button class="btn-theme-toggle" id="btn-theme-toggle" title="Changer de thème">
-                <i class="bi bi-moon-fill" id="icone-theme"></i>
+        <div class="d-flex align-items-center ms-auto gap-2 gap-md-3">
+            <button class="btn-theme-toggle" id="btn-theme-toggle" type="button" title="Changer de thème" aria-label="Changer de thème">
+                <i class="bi bi-moon-fill" id="icone-theme" aria-hidden="true"></i>
             </button>
             <div class="dropdown">
-                <button class="btn btn-sm btn-light position-relative" type="button" data-bs-toggle="dropdown">
-                    <i class="bi bi-bell" style="color: var(--couleur-texte-secondaire);"></i>
+                <button class="btn btn-sm btn-light position-relative btn-icone" type="button" data-bs-toggle="dropdown" aria-label="Notifications" aria-expanded="false">
+                    <i class="bi bi-bell" style="color: var(--couleur-texte-secondaire);" aria-hidden="true"></i>
                     <span id="badge-notifications" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end" id="liste-notifications" style="min-width: 320px;">
+                <ul class="dropdown-menu dropdown-menu-end" id="liste-notifications" style="min-width: min(320px, 90vw);">
                     <li class="dropdown-item text-muted small">Chargement...</li>
                 </ul>
             </div>
 
             <div class="dropdown">
-                <button class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown">
+                <button class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-label="Menu du compte" aria-expanded="false">
                     <span class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: var(--couleur-primaire-claire); color: var(--couleur-primaire); font-size: 0.8rem; font-weight: 600;" id="initiales-utilisateur">--</span>
-                    <span id="nom-utilisateur-connecte" class="small">...</span>
+                    <span id="nom-utilisateur-connecte" class="small d-none d-md-inline">...</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" href="/profil/"><i class="bi bi-person me-2"></i>Mon profil</a></li>
