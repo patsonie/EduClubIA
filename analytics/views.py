@@ -14,6 +14,7 @@ from .services import (
     detecter_clubs_en_difficulte,
 )
 from .permissions import EstGestionnaire, EstGestionnaireStrict
+from utilisateurs.perimetre import clubs_geres, peut_gerer_club
 
 from utilisateurs.models import Utilisateur
 from clubs.models import Club
@@ -24,10 +25,62 @@ from django.http import HttpResponse
 from xhtml2pdf import pisa
 import io
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncMonth
 from datetime import timedelta
-import calendar
+MOIS_ABREGES = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc']
+
+
+def construire_rapport_clubs(request):
+    """Données communes au rapport JSON et PDF, limitées au périmètre de l'utilisateur."""
+    from participations.models import Participation
+    from inscriptions.models import Inscription
+
+    club_id = request.query_params.get('club')
+    clubs = clubs_geres(request.user)
+    if club_id:
+        try:
+            clubs = clubs.filter(id=int(club_id))
+        except (TypeError, ValueError):
+            clubs = clubs.none()
+    clubs = clubs.annotate(
+        membres_annotes=Count('inscriptions', filter=Q(inscriptions__statut='validee'), distinct=True)
+    )
+    club_filtre_nom = clubs.first().nom if club_id and clubs.exists() else None
+
+    participations = Participation.objects.filter(inscription__club__in=clubs)
+    par_club = {
+        ligne['inscription__club_id']: ligne
+        for ligne in participations.values('inscription__club_id').annotate(
+            total=Count('id'), presents=Count('id', filter=Q(statut='present'))
+        )
+    }
+    activites_par_club = dict(
+        Activite.objects.filter(club__in=clubs).values_list('club_id').annotate(n=Count('id'))
+    )
+
+    rapport_clubs = []
+    for club in clubs:
+        stats = par_club.get(club.id, {'total': 0, 'presents': 0})
+        taux = round(stats['presents'] / stats['total'] * 100, 1) if stats['total'] else 0
+        rapport_clubs.append({
+            "nom": club.nom,
+            "categorie": club.categorie,
+            "nombre_membres": club.nombre_membres_actuels,
+            "nombre_activites": activites_par_club.get(club.id, 0),
+            "taux_participation": taux,
+        })
+
+    total_global = participations.count()
+    taux_global = round(participations.filter(statut='present').count() / total_global * 100, 1) if total_global else 0
+
+    return {
+        "club_filtre_nom": club_filtre_nom,
+        "total_clubs": clubs.count(),
+        "total_inscriptions": Inscription.objects.filter(club__in=clubs).count(),
+        "taux_participation_global": taux_global,
+        "clubs": rapport_clubs,
+    }
 
 
 class RisqueDesengagementView(APIView):
@@ -40,7 +93,17 @@ class RisqueDesengagementView(APIView):
     permission_classes = [EstGestionnaire]  # inclut le parent, filtrage fait ci-dessous
 
     def get(self, request):
-        resultats = calculer_risques_desengagement_tous_eleves()
+        user = request.user
+        # Périmètre : parent -> ses enfants ; encadreur -> ses clubs ; sinon tout.
+        if user.role == 'parent':
+            filtre = {'eleve__in': user.enfants}
+        elif user.role == 'encadreur':
+            filtre = {'club__in': clubs_geres(user)}
+        else:
+            filtre = {}
+        perimetre_complet = not filtre
+
+        resultats = calculer_risques_desengagement_tous_eleves(**filtre)
 
         objets_sauvegardes = []
         for resultat in resultats:
@@ -54,9 +117,11 @@ class RisqueDesengagementView(APIView):
             )
             objets_sauvegardes.append(objet)
 
-        if request.user.role == 'parent':
-            ids_enfants = set(request.user.enfants.values_list('id', flat=True))
-            objets_sauvegardes = [o for o in objets_sauvegardes if o.eleve_id in ids_enfants]
+        if perimetre_complet:
+            # Supprime les risques obsolètes (inscription plus active).
+            RisqueDesengagement.objects.exclude(
+                pk__in=[o.pk for o in objets_sauvegardes]
+            ).delete()
 
         niveau_filtre = request.query_params.get('niveau')
         if niveau_filtre:
@@ -78,9 +143,12 @@ class PredictionParticipationView(APIView):
 
     def get(self, request, activite_id):
         try:
-            activite = Activite.objects.get(id=activite_id)
+            activite = Activite.objects.select_related('club').get(id=activite_id)
         except Activite.DoesNotExist:
             return Response({"error": "Activité introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not peut_gerer_club(request.user, activite.club):
+            return Response({"error": "Vous ne gérez pas ce club."}, status=status.HTTP_403_FORBIDDEN)
 
         nombre_prevu = predire_nombre_participants(activite)
 
@@ -103,6 +171,9 @@ class ClubEnDifficulteView(APIView):
 
     def get(self, request):
         resultats = detecter_clubs_en_difficulte()
+        ids_geres = set(clubs_geres(request.user).values_list('id', flat=True))
+        resultats_complets = resultats
+        resultats = [r for r in resultats if r["club"].id in ids_geres]
 
         objets_sauvegardes = []
         for resultat in resultats:
@@ -114,6 +185,12 @@ class ClubEnDifficulteView(APIView):
                 },
             )
             objets_sauvegardes.append(objet)
+
+        if request.user.role in ('administrateur', 'proviseur'):
+            # Retire les alertes de clubs qui ne sont plus en difficulté.
+            ClubEnDifficulte.objects.exclude(
+                club_id__in=[r["club"].id for r in resultats_complets]
+            ).delete()
 
         serializer = ClubEnDifficulteSerializer(objets_sauvegardes, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -143,12 +220,13 @@ class StatistiquesGlobalesView(APIView):
                 return 100.0 if ce_mois > 0 else 0.0
             return round(((ce_mois - mois_dernier) / mois_dernier) * 100, 1)
 
-        clubs_avec_effectif = Club.objects.all()
-        clubs_populaires = sorted(
-            clubs_avec_effectif, key=lambda c: c.nombre_membres_actuels, reverse=True
-        )[:5]
+        clubs_populaires = list(
+            Club.objects.annotate(
+                membres_annotes=Count('inscriptions', filter=Q(inscriptions__statut='validee'))
+            ).order_by('-membres_annotes', 'nom')[:5]
+        )
 
-        activites_a_venir = Activite.objects.filter(
+        activites_a_venir = Activite.objects.select_related('club').filter(
             date__gte=aujourdhui
         ).exclude(statut=Activite.Statut.ANNULEE).order_by('date')[:5]
 
@@ -165,7 +243,7 @@ class StatistiquesGlobalesView(APIView):
             .order_by('mois')
         )
         evolution_inscriptions = [
-            {"mois": calendar.month_abbr[i['mois'].month], "total": i['total']}
+            {"mois": f"{MOIS_ABREGES[i['mois'].month - 1]} {i['mois'].year % 100:02d}", "total": i['total']}
             for i in inscriptions_par_mois
         ]
         
@@ -186,14 +264,23 @@ class StatistiquesGlobalesView(APIView):
                 Participation.objects.filter(statut='present').count() / total_participations_global * 100, 1
             )
 
-        clubs_taux_participation = []
-        for club in Club.objects.filter(statut='actif')[:8]:
-            parts_club = Participation.objects.filter(inscription__club=club)
-            total_club = parts_club.count()
-            taux_club = round((parts_club.filter(statut='present').count() / total_club * 100), 1) if total_club else 0
-            clubs_taux_participation.append({"nom": club.nom, "taux_participation": taux_club})
-        clubs_taux_participation.sort(key=lambda c: c["taux_participation"], reverse=True)
-        clubs_taux_participation = clubs_taux_participation[:5]
+        stats_clubs = (
+            Club.objects.filter(statut='actif')
+            .annotate(
+                total_part=Count('inscriptions__participations'),
+                presents=Count('inscriptions__participations', filter=Q(inscriptions__participations__statut='present')),
+            )
+        )
+        clubs_taux_participation = sorted(
+            [
+                {
+                    "nom": c.nom,
+                    "taux_participation": round(c.presents / c.total_part * 100, 1) if c.total_part else 0,
+                }
+                for c in stats_clubs
+            ],
+            key=lambda c: c["taux_participation"], reverse=True,
+        )[:5]
 
         data = {
             "nombre_clubs": Club.objects.count(),
@@ -214,7 +301,7 @@ class StatistiquesGlobalesView(APIView):
             "taux_participation_global": taux_participation_global,
             "clubs_taux_participation": clubs_taux_participation,
             "clubs_populaires": [
-                {"nom": c.nom, "membres": c.nombre_membres_actuels, "categorie": c.categorie}
+                {"nom": c.nom, "membres": c.membres_annotes, "categorie": c.categorie}
                 for c in clubs_populaires
             ],
             "activites_a_venir": [
@@ -240,37 +327,12 @@ class RapportDetailleView(APIView):
         from participations.models import Participation
         from inscriptions.models import Inscription
 
-        club_id = request.query_params.get('club')
-        clubs = Club.objects.filter(id=club_id) if club_id else Club.objects.all()
-
-        rapport_clubs = []
-        for club in clubs:
-            participations = Participation.objects.filter(inscription__club=club)
-            total = participations.count()
-            presents = participations.filter(statut='present').count()
-            taux = round((presents / total * 100), 1) if total else 0
-
-            rapport_clubs.append({
-                "nom": club.nom,
-                "categorie": club.categorie,
-                "nombre_membres": club.nombre_membres_actuels,
-                "nombre_activites": Activite.objects.filter(club=club).count(),
-                "taux_participation": taux,
-            })
-
-        total_inscriptions = Inscription.objects.count()
-        taux_global_participation = 0
-        total_participations_global = Participation.objects.count()
-        if total_participations_global:
-            taux_global_participation = round(
-                Participation.objects.filter(statut='present').count() / total_participations_global * 100, 1
-            )
-
+        rapport = construire_rapport_clubs(request)
         return Response({
-            "total_clubs": clubs.count(),
-            "total_inscriptions": total_inscriptions,
-            "taux_participation_global": taux_global_participation,
-            "clubs": rapport_clubs,
+            "total_clubs": rapport["total_clubs"],
+            "total_inscriptions": rapport["total_inscriptions"],
+            "taux_participation_global": rapport["taux_participation_global"],
+            "clubs": rapport["clubs"],
         }, status=status.HTTP_200_OK)
         
 class RapportPDFView(APIView):
@@ -281,43 +343,15 @@ class RapportPDFView(APIView):
     permission_classes = [EstGestionnaireStrict]
 
     def get(self, request):
-        from participations.models import Participation
-        from inscriptions.models import Inscription
-
-        club_id = request.query_params.get('club')
-        clubs = Club.objects.filter(id=club_id) if club_id else Club.objects.all()
-        club_filtre_nom = clubs.first().nom if club_id and clubs.exists() else None
-
-        rapport_clubs = []
-        for club in clubs:
-            participations = Participation.objects.filter(inscription__club=club)
-            total = participations.count()
-            presents = participations.filter(statut='present').count()
-            taux = round((presents / total * 100), 1) if total else 0
-
-            rapport_clubs.append({
-                "nom": club.nom,
-                "categorie": club.categorie,
-                "nombre_membres": club.nombre_membres_actuels,
-                "nombre_activites": Activite.objects.filter(club=club).count(),
-                "taux_participation": taux,
-            })
-
-        total_participations_global = Participation.objects.count()
-        taux_global = 0
-        if total_participations_global:
-            taux_global = round(
-                Participation.objects.filter(statut='present').count() / total_participations_global * 100, 1
-            )
-
+        rapport = construire_rapport_clubs(request)
         contexte = {
             "nom_etablissement": "Lycée — Gestion des clubs et activités",
             "date_generation": timezone.now().strftime("%d/%m/%Y à %H:%M"),
-            "club_filtre": club_filtre_nom,
-            "total_clubs": clubs.count(),
-            "total_inscriptions": Inscription.objects.count(),
-            "taux_participation_global": taux_global,
-            "clubs": rapport_clubs,
+            "club_filtre": rapport["club_filtre_nom"],
+            "total_clubs": rapport["total_clubs"],
+            "total_inscriptions": rapport["total_inscriptions"],
+            "taux_participation_global": rapport["taux_participation_global"],
+            "clubs": rapport["clubs"],
         }
 
         html_genere = render_to_string('base/rapport_pdf.html', contexte)

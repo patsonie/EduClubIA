@@ -1,7 +1,7 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, re_path, include
 from django.conf import settings
-from django.conf.urls.static import static
+from .views_media import media_publique
 from .views_pages import (
     PageConnexionView, PageDashboardView, PageMesEnfantsView,
     PageClubsView, PageDetailClubView, PageActivitesView, PagePresencesView,
@@ -19,7 +19,7 @@ from recommandations.views import ReentrainementIAView, HistoriqueEntrainementVi
 urlpatterns = [
     path('connexion/', PageConnexionView.as_view(), name='page_connexion'),
     path('', PageDashboardView.as_view(), name='dashboard'),
-    path('admin/', admin.site.urls),
+    path(settings.ADMIN_URL, admin.site.urls),
     path('api/auth/', include('utilisateurs.urls')),
     path('api/clubs/', include('clubs.urls')),
     path('api/activites/', include('activites.urls')),
@@ -60,7 +60,8 @@ urlpatterns = [
     path('validation-compte/', PageValidationCompteView.as_view(), name='page_validation_compte'),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    
-    
+# Sans stockage objet, les fichiers publics (photos, logos) sont servis par Django ;
+# avec S3, les URL générées pointent directement vers le stockage.
+urlpatterns += [
+    re_path(r'^media/(?P<path>.+)$', media_publique, name='media_publique'),
+]

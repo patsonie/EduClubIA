@@ -1,6 +1,8 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db import transaction
+from django.db.models import ProtectedError
 from .models import AnneeScolaire
 from .serializers import AnneeScolaireSerializer
 
@@ -32,12 +34,21 @@ class AnneeScolaireViewSet(viewsets.ModelViewSet):
         from .services import archiver_inscriptions_annee_precedente
 
         annee = self.get_object()
-        annee.est_active = True
-        annee.save()
-
-        archiver_inscriptions_annee_precedente(annee)
+        with transaction.atomic():
+            annee.est_active = True
+            annee.save()
+            archiver_inscriptions_annee_precedente(annee)
 
         return Response(
             {"message": f"Année scolaire {annee.libelle} activée. Inscriptions précédentes archivées."},
             status=status.HTTP_200_OK,
         )
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {"error": "Cette année scolaire contient des inscriptions et ne peut pas être supprimée."},
+                status=status.HTTP_409_CONFLICT,
+            )

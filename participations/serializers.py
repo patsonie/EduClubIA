@@ -20,12 +20,26 @@ class ParticipationSerializer(serializers.ModelSerializer):
         inscription = attrs.get('inscription')
         activite = attrs.get('activite')
 
+        if self.instance:
+            inscription = inscription or self.instance.inscription
+            activite = activite or self.instance.activite
+
+        request = self.context.get('request')
+        if request and activite and request.user.role == 'encadreur' and activite.club.responsable_id != request.user.id:
+            raise serializers.ValidationError("Vous ne gérez pas le club de cette activité.")
+
+        if inscription and inscription.statut != inscription.Statut.VALIDEE:
+            raise serializers.ValidationError("L'inscription de cet élève n'est pas validée.")
+
         if inscription and activite and inscription.club_id != activite.club_id:
             raise serializers.ValidationError(
                 "Cette inscription ne correspond pas au club organisateur de l'activité."
             )
 
-        if Participation.objects.filter(inscription=inscription, activite=activite).exists():
+        doublons = Participation.objects.filter(inscription=inscription, activite=activite)
+        if self.instance:
+            doublons = doublons.exclude(pk=self.instance.pk)
+        if doublons.exists():
             raise serializers.ValidationError(
                 "La participation de cet élève à cette activité est déjà enregistrée."
             )

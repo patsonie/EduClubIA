@@ -46,6 +46,7 @@ class InscriptionAPITest(APITestCase):
         self.club = Club.objects.create(
             nom="Club Lecture", description="Club de lecture",
             categorie=Club.Categorie.CULTUREL, objectifs="Lire", nombre_max_membres=10,
+            statut=Club.Statut.ACTIF,
         )
         self.annee = AnneeScolaire.objects.create(
             libelle="2025-2026", date_debut="2025-09-01", date_fin="2026-07-31", est_active=True,

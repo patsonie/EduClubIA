@@ -6,6 +6,8 @@ import django_filters
 from .models import Activite, HistoriqueActivite
 from .serializers import ActiviteSerializer, ActiviteListeSerializer
 from .permissions import EstEncadreurOuAdminOuLectureSeule
+from rest_framework.exceptions import PermissionDenied
+from utilisateurs.perimetre import est_gestion_globale, peut_gerer_club
 from notifications.services import notifier_nouvelle_activite, notifier_parents_nouvelle_activite
 
 
@@ -25,7 +27,7 @@ class ActiviteFilterSet(django_filters.FilterSet):
 
 class ActiviteViewSet(viewsets.ModelViewSet):
    
-    queryset = Activite.objects.all()
+    queryset = Activite.objects.select_related('club', 'responsable').all()
     permission_classes = [EstEncadreurOuAdminOuLectureSeule]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ActiviteFilterSet
@@ -38,6 +40,8 @@ class ActiviteViewSet(viewsets.ModelViewSet):
         return ActiviteSerializer
 
     def perform_create(self, serializer):
+        if not peut_gerer_club(self.request.user, serializer.validated_data['club']):
+            raise PermissionDenied("Vous ne gérez pas ce club.")
         activite = serializer.save()
         HistoriqueActivite.objects.create(
             activite=activite,
@@ -51,7 +55,10 @@ class ActiviteViewSet(viewsets.ModelViewSet):
         notifier_parents_nouvelle_activite(activite)
 
     def perform_update(self, serializer):
-        ancien_statut = self.get_object().statut
+        ancien_statut = serializer.instance.statut
+        nouveau_club = serializer.validated_data.get('club')
+        if nouveau_club and not peut_gerer_club(self.request.user, nouveau_club):
+            raise PermissionDenied("Vous ne gérez pas ce club.")
         activite = serializer.save()
         if ancien_statut != activite.statut:
             HistoriqueActivite.objects.create(
@@ -64,7 +71,9 @@ class ActiviteViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):
-        """Validation rapide d'une activité planifiée."""
+        """Validation rapide d'une activité planifiée (administrateur / responsable pédagogique)."""
+        if not est_gestion_globale(request.user):
+            raise PermissionDenied("Seul un responsable pédagogique ou un administrateur peut valider une activité.")
         activite = self.get_object()
         ancien_statut = activite.statut
         activite.statut = Activite.Statut.VALIDEE
@@ -78,7 +87,7 @@ class ActiviteViewSet(viewsets.ModelViewSet):
             commentaire="Validation de l'activité",
         )
 
-        return Response(ActiviteSerializer(activite).data, status=status.HTTP_200_OK)
+        return Response(ActiviteSerializer(activite, context={'request': request}).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def participants_attendus(self, request, pk=None):

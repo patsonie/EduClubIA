@@ -3,19 +3,25 @@ Pipeline d'entraînement, de validation et de prédiction pour le module de
 recommandations IA (content-based filtering + collaborative filtering).
 
 Entraînement : ajuste les modèles sur l'ensemble des données actuelles et les
-persiste sur disque (joblib), pour que la prédiction (à la demande) n'ait
-plus qu'à charger des modèles déjà entraînés, sans recalcul complet à chaque requête.
+persiste sur disque (joblib). La prédiction charge ces modèles (avec cache) et
+retombe sur un calcul à la volée s'ils sont absents ou périmés.
+
+Validation : métriques de classement calculées SANS fuite de données
+(l'élément masqué est retiré de la matrice d'entraînement), comparées à une
+baseline de popularité.
 """
 
 import joblib
 import numpy as np
 import pandas as pd
 from django.conf import settings
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import NearestNeighbors
 from clubs.models import Club
 from inscriptions.models import Inscription
-from .services import construire_texte_profil_club
+from .services import (
+    construire_texte_profil_club, construire_texte_profil_eleve, nouveau_vectoriseur,
+)
 
 CHEMIN_VECTORIZER = settings.IA_MODELES_DIR / 'tfidf_vectorizer.pkl'
 CHEMIN_MATRICE_CLUBS = settings.IA_MODELES_DIR / 'tfidf_matrice_clubs.pkl'
@@ -25,22 +31,26 @@ CHEMIN_MODELE_KNN = settings.IA_MODELES_DIR / 'knn_modele.pkl'
 CHEMIN_MATRICE_ELEVE_CLUB = settings.IA_MODELES_DIR / 'knn_matrice_eleve_club.pkl'
 CHEMIN_ELEVE_IDS = settings.IA_MODELES_DIR / 'knn_eleve_ids.pkl'
 
+TOP_K_VALIDATION = 3
+
 
 def entrainer_modele_content_based():
     """
-    PIPELINE D'ENTRAÎNEMENT (content-based) : ajuste un TfidfVectorizer sur le
-    corpus de tous les clubs actifs et persiste le vectoriseur + la matrice
-    résultante, pour que la prédiction se limite à un simple `.transform()`.
+    PIPELINE D'ENTRAÎNEMENT (content-based) : ajuste un TF-IDF sur le corpus des
+    clubs actifs et persiste le vectoriseur + la matrice résultante.
     """
-    clubs = list(Club.objects.filter(statut='actif'))
+    clubs = list(Club.objects.filter(statut=Club.Statut.ACTIF))
     if not clubs:
         return {"statut": "echec", "raison": "Aucun club actif à entraîner."}
 
     textes = [construire_texte_profil_club(c) for c in clubs]
     club_ids = [c.id for c in clubs]
 
-    vectorizer = TfidfVectorizer(stop_words=None)
-    matrice_clubs = vectorizer.fit_transform(textes)
+    vectorizer = nouveau_vectoriseur()
+    try:
+        matrice_clubs = vectorizer.fit_transform(textes)
+    except ValueError:
+        return {"statut": "echec", "raison": "Vocabulaire vide : descriptions de clubs insuffisantes."}
 
     joblib.dump(vectorizer, CHEMIN_VECTORIZER)
     joblib.dump(matrice_clubs, CHEMIN_MATRICE_CLUBS)
@@ -55,41 +65,88 @@ def entrainer_modele_content_based():
 
 def valider_modele_content_based():
     """
-    PIPELINE DE VALIDATION : vérifie que le modèle entraîné produit une
-    couverture raisonnable (chaque club a un vecteur non nul, donc pourra
-    être recommandé) — une validation simple mais réelle du pipeline.
+    VALIDATION (content-based) : pour chaque élève ayant un profil déclaré
+    (centres d'intérêt / filière) et au moins un club validé, on classe les clubs
+    à partir du seul profil déclaré (sans l'historique d'inscriptions) et on mesure
+    si un de ses clubs réels figure dans le top-k (hit rate@k), par rapport à une
+    baseline de popularité. Précision@k et couverture sont aussi fournies.
     """
-    if not CHEMIN_MATRICE_CLUBS.exists():
-        return {"valide": False, "raison": "Aucun modèle entraîné à valider."}
+    clubs = list(Club.objects.filter(statut=Club.Statut.ACTIF))
+    if len(clubs) < 2:
+        return {"valide": False, "raison": "Pas assez de clubs actifs pour valider."}
 
-    matrice = joblib.load(CHEMIN_MATRICE_CLUBS)
-    nb_clubs = matrice.shape[0]
-    nb_vecteurs_non_nuls = int((matrice.sum(axis=1) > 0).sum())
-    taux_couverture = round((nb_vecteurs_non_nuls / nb_clubs) * 100, 1) if nb_clubs else 0
+    from utilisateurs.models import Utilisateur
+    inscriptions = Inscription.objects.filter(
+        statut=Inscription.Statut.VALIDEE, club__statut=Club.Statut.ACTIF
+    ).values_list('eleve_id', 'club_id')
+    clubs_par_eleve = {}
+    for eleve_id, club_id in inscriptions:
+        clubs_par_eleve.setdefault(eleve_id, set()).add(club_id)
+    popularite = pd.Series([c for _, c in inscriptions]).value_counts()
+    top_populaires = list(popularite.index[:TOP_K_VALIDATION]) if len(popularite) else []
 
+    eleves = [
+        e for e in Utilisateur.objects.filter(id__in=clubs_par_eleve.keys())
+        if construire_texte_profil_eleve(e, inclure_historique=False).strip()
+    ]
+    if len(eleves) < 5:
+        return {
+            "valide": False,
+            "raison": "Moins de 5 élèves avec profil déclaré et club validé : validation non significative.",
+            "nb_eleves_evalues": len(eleves),
+        }
+
+    textes_clubs = [construire_texte_profil_club(c) for c in clubs]
+    ids_clubs = [c.id for c in clubs]
+    textes_eleves = [construire_texte_profil_eleve(e, inclure_historique=False) for e in eleves]
+    try:
+        matrice = nouveau_vectoriseur().fit_transform(textes_clubs + textes_eleves)
+    except ValueError:
+        return {"valide": False, "raison": "Vocabulaire vide."}
+    sim = cosine_similarity(matrice[len(clubs):], matrice[:len(clubs)])
+
+    hits, hits_baseline, precisions, clubs_recommandes = 0, 0, [], set()
+    for i, eleve in enumerate(eleves):
+        reels = clubs_par_eleve[eleve.id]
+        top = [ids_clubs[j] for j in np.argsort(-sim[i])[:TOP_K_VALIDATION]]
+        clubs_recommandes.update(top)
+        correct = len(reels & set(top))
+        hits += 1 if correct else 0
+        precisions.append(correct / TOP_K_VALIDATION)
+        hits_baseline += 1 if reels & set(top_populaires) else 0
+
+    hit_rate = round(hits / len(eleves) * 100, 1)
+    hit_baseline = round(hits_baseline / len(eleves) * 100, 1)
     return {
-        "valide": taux_couverture >= 50,
-        "taux_couverture_pourcent": taux_couverture,
-        "nb_clubs_avec_vecteur": nb_vecteurs_non_nuls,
-        "nb_clubs_total": nb_clubs,
+        "valide": hit_rate >= hit_baseline,
+        "k": TOP_K_VALIDATION,
+        "hit_rate_pourcent": hit_rate,
+        "baseline_popularite_pourcent": hit_baseline,
+        "precision_moyenne_pourcent": round(float(np.mean(precisions)) * 100, 1),
+        "couverture_catalogue_pourcent": round(len(clubs_recommandes) / len(clubs) * 100, 1),
+        "nb_eleves_evalues": len(eleves),
     }
+
+
+def _matrice_eleve_club():
+    inscriptions = Inscription.objects.filter(
+        statut__in=['validee', 'en_attente', 'archivee']
+    ).values('eleve_id', 'club_id')
+    donnees = list(inscriptions)
+    if not donnees:
+        return pd.DataFrame()
+    df = pd.DataFrame(donnees)
+    df['valeur'] = 1
+    return df.pivot_table(index='eleve_id', columns='club_id', values='valeur', fill_value=0, aggfunc='max')
 
 
 def entrainer_modele_collaboratif():
     """
-    PIPELINE D'ENTRAÎNEMENT (collaboratif) : construit la matrice élève×club
-    et ajuste un modèle KNN, persisté pour la prédiction.
+    PIPELINE D'ENTRAÎNEMENT (collaboratif) : matrice élève×club et KNN cosinus, persistés.
     """
-    inscriptions = Inscription.objects.filter(
-        statut__in=['validee', 'en_attente', 'archivee']
-    ).values('eleve_id', 'club_id')
-
-    if not inscriptions:
+    matrice = _matrice_eleve_club()
+    if matrice.empty:
         return {"statut": "echec", "raison": "Aucune inscription disponible pour l'entraînement."}
-
-    df = pd.DataFrame(list(inscriptions))
-    df['valeur'] = 1
-    matrice = df.pivot_table(index='eleve_id', columns='club_id', values='valeur', fill_value=0, aggfunc='max')
 
     if len(matrice) < 2:
         return {"statut": "echec", "raison": "Pas assez d'élèves distincts pour entraîner un modèle collaboratif."}
@@ -109,43 +166,73 @@ def entrainer_modele_collaboratif():
     }
 
 
-def valider_modele_collaboratif():
+def valider_modele_collaboratif(k_voisins=5, top_k=TOP_K_VALIDATION, taille_max=100):
     """
-    PIPELINE DE VALIDATION : validation "leave-one-out" simplifiée — pour un
-    échantillon d'élèves ayant plusieurs clubs, on masque un club et on
-    vérifie si le modèle parvient à le retrouver parmi ses voisins les plus proches.
+    VALIDATION « leave-one-out » sans fuite : pour chaque élève ayant >= 2 clubs, on
+    masque un club DANS LA MATRICE D'ENTRAÎNEMENT (la ligne de l'élève est modifiée
+    avant l'ajustement du KNN), puis on regarde si ce club apparaît dans le top-k des
+    clubs recommandés par les voisins. Métriques : hit rate@k, précision@k, rappel@k,
+    comparées à la baseline « clubs les plus populaires ».
     """
-    if not CHEMIN_MODELE_KNN.exists():
-        return {"valide": False, "raison": "Aucun modèle entraîné à valider."}
+    matrice = _matrice_eleve_club()
+    if matrice.empty:
+        return {"valide": False, "raison": "Aucune donnée pour valider."}
 
-    modele = joblib.load(CHEMIN_MODELE_KNN)
-    matrice = joblib.load(CHEMIN_MATRICE_ELEVE_CLUB)
+    eligibles = matrice[matrice.sum(axis=1) >= 2]
+    if len(eligibles) < 5 or len(matrice) < 6:
+        return {
+            "valide": False,
+            "raison": "Moins de 5 élèves avec au moins 2 clubs : validation non significative.",
+            "nb_eleves_evalues": int(len(eligibles)),
+        }
 
-    eleves_avec_plusieurs_clubs = matrice[matrice.sum(axis=1) >= 2]
-    if eleves_avec_plusieurs_clubs.empty:
-        return {"valide": True, "raison": "Pas assez de données pour un test leave-one-out, validation basique passée."}
+    echantillon = eligibles.sample(min(taille_max, len(eligibles)), random_state=42)
+    popularite = matrice.sum(axis=0).sort_values(ascending=False)
 
-    echantillon = eleves_avec_plusieurs_clubs.sample(min(10, len(eleves_avec_plusieurs_clubs)), random_state=42)
-    reussites = 0
+    hits = hits_baseline = 0
+    precisions, rappels, clubs_recommandes = [], [], set()
 
-    for idx_eleve, ligne in echantillon.iterrows():
-        clubs_reels = set(ligne[ligne == 1].index)
-        club_masque = next(iter(clubs_reels))
+    for eleve_id, ligne in echantillon.iterrows():
+        clubs_reels = list(ligne[ligne == 1].index)
+        club_masque = clubs_reels[0]  # déterministe (index trié)
 
-        ligne_modifiee = ligne.copy()
-        ligne_modifiee[club_masque] = 0
+        entrainement = matrice.copy()
+        entrainement.loc[eleve_id, club_masque] = 0  # masquage AVANT l'ajustement : pas de fuite
+        modele = NearestNeighbors(n_neighbors=min(k_voisins + 1, len(entrainement)), metric='cosine')
+        modele.fit(entrainement.values)
 
-        distances, indices_voisins = modele.kneighbors([ligne_modifiee.values])
-        clubs_recommandes = set()
-        for idx_voisin in indices_voisins[0]:
-            clubs_recommandes.update(matrice.columns[matrice.iloc[idx_voisin].values == 1])
+        position = entrainement.index.get_loc(eleve_id)
+        distances, voisins = modele.kneighbors([entrainement.iloc[position].values])
 
-        if club_masque in clubs_recommandes:
-            reussites += 1
+        scores = {}
+        for distance, idx in zip(distances[0], voisins[0]):
+            if entrainement.index[idx] == eleve_id:
+                continue
+            for club_id in entrainement.columns[entrainement.iloc[idx].values == 1]:
+                if entrainement.loc[eleve_id, club_id] == 1:
+                    continue  # déjà rejoint (hors club masqué)
+                scores[club_id] = scores.get(club_id, 0) + (1 - distance)
 
-    taux_reussite = round((reussites / len(echantillon)) * 100, 1)
+        top = [c for c, _ in sorted(scores.items(), key=lambda x: -x[1])[:top_k]]
+        clubs_recommandes.update(top)
+        reussi = club_masque in top
+        hits += 1 if reussi else 0
+        precisions.append((1 if reussi else 0) / top_k)
+        rappels.append(1 if reussi else 0)
+
+        top_pop = [c for c in popularite.index if entrainement.loc[eleve_id, c] == 0][:top_k]
+        hits_baseline += 1 if club_masque in top_pop else 0
+
+    n = len(echantillon)
+    hit_rate = round(hits / n * 100, 1)
+    hit_baseline = round(hits_baseline / n * 100, 1)
     return {
-        "valide": taux_reussite >= 20,
-        "taux_reussite_pourcent": taux_reussite,
-        "taille_echantillon": len(echantillon),
+        "valide": hit_rate >= hit_baseline,
+        "k": top_k,
+        "hit_rate_pourcent": hit_rate,
+        "baseline_popularite_pourcent": hit_baseline,
+        "precision_moyenne_pourcent": round(float(np.mean(precisions)) * 100, 1),
+        "rappel_moyen_pourcent": round(float(np.mean(rappels)) * 100, 1),
+        "couverture_catalogue_pourcent": round(len(clubs_recommandes) / matrice.shape[1] * 100, 1),
+        "nb_eleves_evalues": n,
     }

@@ -141,7 +141,9 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
         """Retourne les élèves liés à ce parent (queryset vide si ce n'est pas un parent)."""
         if self.role != self.Role.PARENT:
             return Utilisateur.objects.none()
-        enfants_ids = self.relations_enfants.values_list('enfant_id', flat=True)
+        enfants_ids = self.relations_enfants.filter(
+            statut=RelationParentEleve.Statut.VALIDEE
+        ).values_list('enfant_id', flat=True)
         return Utilisateur.objects.filter(id__in=enfants_ids)
 
     @property
@@ -149,7 +151,9 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
         """Retourne les parents liés à cet élève (queryset vide si ce n'est pas un élève)."""
         if self.role != self.Role.ELEVE:
             return Utilisateur.objects.none()
-        parents_ids = self.relations_parents.values_list('parent_id', flat=True)
+        parents_ids = self.relations_parents.filter(
+            statut=RelationParentEleve.Statut.VALIDEE
+        ).values_list('parent_id', flat=True)
         return Utilisateur.objects.filter(id__in=parents_ids)
     
 
@@ -180,6 +184,11 @@ class RelationParentEleve(models.Model):
     Un élève peut avoir plusieurs parents ; un parent peut avoir plusieurs enfants.
     """
 
+    class Statut(models.TextChoices):
+        EN_ATTENTE = 'en_attente', 'En attente de validation'
+        VALIDEE = 'validee', 'Validée'
+
+    statut = models.CharField(max_length=15, choices=Statut.choices, default=Statut.VALIDEE)
     parent = models.ForeignKey(
         Utilisateur,
         on_delete=models.CASCADE,

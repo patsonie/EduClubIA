@@ -2,21 +2,42 @@ from rest_framework import permissions
 from inscriptions.models import Inscription
 
 
-class EstMembreDuSalon(permissions.BasePermission):
+def salon_club(salon):
+    return salon.club or (salon.activite.club if salon.activite else None)
+
+
+def utilisateur_a_acces_salon(user, salon):
     """
-    Autorise l'accès à un salon uniquement aux gestionnaires (admin/proviseur/encadreur)
-    ou aux élèves validés du club concerné par le salon.
+    Règles d'accès à un salon :
+    - compte actif et validé obligatoire ;
+    - salon privé : uniquement ses participants ;
+    - administrateur / responsable pédagogique : tous les salons de club et d'activité ;
+    - encadreur : salons des clubs qu'il encadre ;
+    - élève : salons des clubs où son inscription est validée.
     """
+    if not user.is_authenticated or not user.is_active or user.statut_validation != 'valide':
+        return False
 
-    def has_object_permission(self, request, view, obj):
-        user = request.user
-        if user.role in ['administrateur', 'proviseur', 'encadreur']:
-            return True
+    if salon.type_salon == salon.TypeSalon.PRIVE:
+        return salon.participants.filter(id=user.id).exists()
 
-        club = obj.club or (obj.activite.club if obj.activite else None)
-        if not club:
-            return False
+    club = salon_club(salon)
+    if not club:
+        return False
 
+    if user.role in ['administrateur', 'proviseur']:
+        return True
+    if user.role == 'encadreur':
+        return club.responsable_id == user.id
+    if user.role == 'eleve':
         return Inscription.objects.filter(
             eleve=user, club=club, statut=Inscription.Statut.VALIDEE
         ).exists()
+    return False
+
+
+class EstMembreDuSalon(permissions.BasePermission):
+    """Autorise l'accès à un salon selon `utilisateur_a_acces_salon`."""
+
+    def has_object_permission(self, request, view, obj):
+        return utilisateur_a_acces_salon(request.user, obj)

@@ -1,33 +1,39 @@
 from urllib.parse import parse_qs
 from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
-from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import AnonymousUser
+
+from .tickets import consommer_ticket
 
 
 @database_sync_to_async
-def obtenir_utilisateur_depuis_token(token):
+def obtenir_utilisateur_depuis_ticket(ticket):
     from utilisateurs.models import Utilisateur
-    try:
-        validated_token = AccessToken(token)
-        user_id = validated_token['user_id']
-        return Utilisateur.objects.get(id=user_id)
-    except Exception:
+    user_id = consommer_ticket(ticket)
+    if user_id is None:
         return AnonymousUser()
+    try:
+        utilisateur = Utilisateur.objects.get(id=user_id)
+    except Utilisateur.DoesNotExist:
+        return AnonymousUser()
+    if not utilisateur.is_active or utilisateur.statut_validation != 'valide':
+        return AnonymousUser()
+    return utilisateur
 
 
 class JWTAuthMiddleware(BaseMiddleware):
     """
-    Authentifie les connexions WebSocket via un token JWT passé en query string.
-    Exemple : ws://127.0.0.1:8000/ws/messagerie/1/?token=<access_token>
+    Authentifie les connexions WebSocket via un ticket à usage unique (30 s) obtenu par
+    POST /api/messagerie/ticket/ avec le JWT d'accès. Le JWT lui-même n'apparaît jamais dans l'URL.
+    Exemple : ws://127.0.0.1:8000/ws/messagerie/1/?ticket=<ticket>
     """
 
     async def __call__(self, scope, receive, send):
         query_string = parse_qs(scope["query_string"].decode())
-        token = query_string.get("token", [None])[0]
+        ticket = query_string.get("ticket", [None])[0]
 
-        if token:
-            scope["user"] = await obtenir_utilisateur_depuis_token(token)
+        if ticket:
+            scope["user"] = await obtenir_utilisateur_depuis_ticket(ticket)
         else:
             scope["user"] = AnonymousUser()
 

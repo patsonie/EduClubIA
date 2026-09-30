@@ -1,0 +1,349 @@
+"""Tests transverses : permissions par objet, périmètres, règles métier critiques."""
+from datetime import date, time
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
+from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from activites.models import Activite
+from annees_scolaires.models import AnneeScolaire
+from clubs.models import Club
+from inscriptions.models import Inscription
+from messagerie.models import SalonDiscussion
+from participations.models import Participation
+from recommandations.services import calculer_recommandations_hybrides
+from utilisateurs.models import RelationParentEleve, Utilisateur
+
+
+def creer_utilisateur(email, role, **extra):
+    return Utilisateur.objects.create_user(
+        email=email, password="motdepasse123", nom=email.split('@')[0], prenom="Test", role=role, **extra
+    )
+
+
+class BaseDonnees(APITestCase):
+    def setUp(self):
+        self.admin = creer_utilisateur("a@t.cm", Utilisateur.Role.ADMINISTRATEUR)
+        self.proviseur = creer_utilisateur("p@t.cm", Utilisateur.Role.PROVISEUR, etablissement="Lycée")
+        self.enc1 = creer_utilisateur("enc1@t.cm", Utilisateur.Role.ENCADREUR)
+        self.enc2 = creer_utilisateur("enc2@t.cm", Utilisateur.Role.ENCADREUR)
+        self.eleve1 = creer_utilisateur("el1@t.cm", Utilisateur.Role.ELEVE, matricule="M1")
+        self.eleve2 = creer_utilisateur("el2@t.cm", Utilisateur.Role.ELEVE, matricule="M2")
+        self.parent = creer_utilisateur("par@t.cm", Utilisateur.Role.PARENT)
+        RelationParentEleve.objects.create(parent=self.parent, enfant=self.eleve1)
+
+        self.annee = AnneeScolaire.objects.create(
+            libelle="2025-2026", date_debut="2025-09-01", date_fin="2026-07-31", est_active=True,
+        )
+        self.club1 = Club.objects.create(
+            nom="Club 1", description="robotique informatique", objectifs="coder",
+            categorie=Club.Categorie.TECHNOLOGIQUE, responsable=self.enc1,
+            nombre_max_membres=2, statut=Club.Statut.ACTIF,
+        )
+        self.club2 = Club.objects.create(
+            nom="Club 2", description="théâtre", objectifs="jouer",
+            categorie=Club.Categorie.CULTUREL, responsable=self.enc2,
+            nombre_max_membres=5, statut=Club.Statut.ACTIF,
+        )
+        self.ins1 = Inscription.objects.create(
+            eleve=self.eleve1, club=self.club1, annee_scolaire=self.annee,
+            statut=Inscription.Statut.VALIDEE,
+        )
+        self.act1 = Activite.objects.create(
+            club=self.club1, titre="A1", description="d", date=date(2026, 1, 10),
+            heure=time(10, 0), lieu="Salle",
+        )
+
+    def auth(self, user):
+        self.client.force_authenticate(user)
+
+
+class ParticipationsSecuriteTest(BaseDonnees):
+    def test_rapport_individuel_refuse_a_un_autre_eleve(self):
+        Participation.objects.create(inscription=self.ins1, activite=self.act1)
+        self.auth(self.eleve2)
+        r = self.client.get('/api/participations/rapport_individuel/', {'eleve_id': self.eleve1.id})
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_rapport_individuel_autorise_pour_le_parent_lie(self):
+        Participation.objects.create(inscription=self.ins1, activite=self.act1)
+        self.auth(self.parent)
+        r = self.client.get('/api/participations/rapport_individuel/', {'eleve_id': self.eleve1.id})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.data['total_activites'], 1)
+
+    def test_enregistrer_lot_valide_les_entrees(self):
+        self.auth(self.enc1)
+        r = self.client.post('/api/participations/enregistrer_lot/', {
+            'activite': self.act1.id, 'presences': [{'inscription': self.ins1.id, 'statut': 'nimporte'}],
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_enregistrer_lot_ok_et_notifie_parent(self):
+        self.auth(self.enc1)
+        r = self.client.post('/api/participations/enregistrer_lot/', {
+            'activite': self.act1.id, 'presences': [{'inscription': self.ins1.id, 'statut': 'absent'}],
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.parent.notifications.filter(titre="Absence enregistrée").exists())
+
+    def test_enregistrer_lot_refuse_a_un_encadreur_dun_autre_club(self):
+        self.auth(self.enc2)
+        r = self.client.post('/api/participations/enregistrer_lot/', {
+            'activite': self.act1.id, 'presences': [{'inscription': self.ins1.id, 'statut': 'present'}],
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class InscriptionsRegles(BaseDonnees):
+    def test_encadreur_autre_club_ne_peut_pas_valider(self):
+        ins = Inscription.objects.create(eleve=self.eleve2, club=self.club1, annee_scolaire=self.annee)
+        self.auth(self.enc2)
+        r = self.client.post(f'/api/inscriptions/{ins.id}/valider/')
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_transition_invalide_refusee(self):
+        self.auth(self.enc1)
+        r = self.client.post(f'/api/inscriptions/{self.ins1.id}/valider/')  # déjà validée
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validation_refusee_si_club_complet(self):
+        Inscription.objects.create(
+            eleve=self.eleve2, club=self.club1, annee_scolaire=self.annee, statut=Inscription.Statut.VALIDEE,
+        )
+        eleve3 = creer_utilisateur("el3@t.cm", Utilisateur.Role.ELEVE, matricule="M3")
+        ins = Inscription.objects.create(eleve=eleve3, club=self.club1, annee_scolaire=self.annee)
+        self.auth(self.enc1)
+        r = self.client.post(f'/api/inscriptions/{ins.id}/valider/')
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reinscription_apres_desinscription(self):
+        self.auth(self.eleve2)
+        r = self.client.post('/api/inscriptions/', {'club': self.club2.id, 'annee_scolaire': self.annee.id}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        ins_id = r.data['id']
+        self.assertEqual(self.client.post(f'/api/inscriptions/{ins_id}/se_desinscrire/').status_code, 200)
+        r = self.client.post('/api/inscriptions/', {'club': self.club2.id, 'annee_scolaire': self.annee.id}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Inscription.objects.filter(eleve=self.eleve2, club=self.club2).count(), 1)
+
+    def test_inscription_refusee_pour_club_inactif(self):
+        self.club2.statut = Club.Statut.INACTIF
+        self.club2.save()
+        self.auth(self.eleve2)
+        r = self.client.post('/api/inscriptions/', {'club': self.club2.id, 'annee_scolaire': self.annee.id}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ClubsEtActivitesPerimetre(BaseDonnees):
+    def test_membres_masques_aux_non_membres(self):
+        self.auth(self.eleve2)
+        self.assertEqual(self.client.get(f'/api/clubs/{self.club1.id}/membres/').status_code, 403)
+        self.auth(self.parent)
+        self.assertEqual(self.client.get(f'/api/clubs/{self.club1.id}/membres/').status_code, 403)
+        self.auth(self.eleve1)
+        self.assertEqual(self.client.get(f'/api/clubs/{self.club1.id}/membres/').status_code, 200)
+
+    def test_encadreur_ne_modifie_pas_activite_dun_autre_club(self):
+        self.auth(self.enc2)
+        r = self.client.patch(f'/api/activites/{self.act1.id}/', {'titre': 'Piraté'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_encadreur_ne_valide_pas_une_activite(self):
+        self.auth(self.enc1)
+        r = self.client.post(f'/api/activites/{self.act1.id}/valider/')
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_budget_masque_pour_l_eleve(self):
+        self.auth(self.eleve1)
+        r = self.client.get(f'/api/activites/{self.act1.id}/')
+        self.assertNotIn('budget', r.data)
+
+
+class ComptesSuspendus(BaseDonnees):
+    def test_jeton_dun_compte_suspendu_est_refuse(self):
+        client = APIClient()
+        access = str(RefreshToken.for_user(self.eleve1).access_token)
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {access}')
+        self.assertEqual(client.get('/api/auth/profil/').status_code, 200)
+
+        self.auth(self.admin)
+        self.assertEqual(self.client.post(f'/api/auth/utilisateurs/{self.eleve1.id}/suspendre/').status_code, 200)
+        self.assertEqual(client.get('/api/auth/profil/').status_code, 401)
+
+
+class MessagerieAcces(BaseDonnees):
+    def test_acces_aux_salons(self):
+        salon1 = SalonDiscussion.objects.get(club=self.club1)
+        self.auth(self.enc2)
+        self.assertEqual(self.client.get(f'/api/messagerie/salons/{salon1.id}/messages/').status_code, 404)
+        self.auth(self.enc1)
+        self.assertEqual(self.client.get(f'/api/messagerie/salons/{salon1.id}/messages/').status_code, 200)
+        self.auth(self.eleve2)
+        self.assertEqual(self.client.get(f'/api/messagerie/salons/{salon1.id}/messages/').status_code, 404)
+        self.auth(self.parent)
+        self.assertEqual(self.client.get('/api/messagerie/salons/').data, [])
+
+    def test_salon_prive_reserve_aux_participants(self):
+        prive = SalonDiscussion.objects.create(type_salon=SalonDiscussion.TypeSalon.PRIVE)
+        prive.participants.add(self.parent, self.enc1)
+        self.auth(self.admin)
+        ids = [s['id'] for s in self.client.get('/api/messagerie/salons/').data]
+        self.assertNotIn(prive.id, ids)
+        self.auth(self.parent)
+        self.assertEqual(self.client.get(f'/api/messagerie/salons/{prive.id}/messages/').status_code, 200)
+
+
+class AnneesScolaires(BaseDonnees):
+    def test_est_active_non_modifiable_par_patch(self):
+        autre = AnneeScolaire.objects.create(
+            libelle="2026-2027", date_debut="2026-09-01", date_fin="2027-07-31", est_active=False,
+        )
+        self.auth(self.admin)
+        self.client.patch(f'/api/annees-scolaires/{autre.id}/', {'est_active': True}, format='json')
+        autre.refresh_from_db()
+        self.assertFalse(autre.est_active)
+        self.assertEqual(self.client.post(f'/api/annees-scolaires/{autre.id}/activer/').status_code, 200)
+        self.annee.refresh_from_db()
+        self.assertFalse(self.annee.est_active)
+
+    def test_suppression_annee_avec_inscriptions_donne_409(self):
+        self.auth(self.admin)
+        r = self.client.delete(f'/api/annees-scolaires/{self.annee.id}/')
+        self.assertEqual(r.status_code, status.HTTP_409_CONFLICT)
+
+
+class RecommandationsRegles(BaseDonnees):
+    def test_pas_de_club_inactif_recommande(self):
+        self.club2.statut = Club.Statut.ARCHIVE
+        self.club2.save()
+        self.eleve2.centres_interet = "théâtre, informatique"
+        self.eleve2.save()
+        ids = [r['club'].id for r in calculer_recommandations_hybrides(self.eleve2)]
+        self.assertNotIn(self.club2.id, ids)
+        self.assertIn(self.club1.id, ids)
+
+    def test_cold_start_retourne_des_clubs_populaires(self):
+        resultats = calculer_recommandations_hybrides(self.eleve2)
+        self.assertTrue(resultats)
+
+
+class ValidateursFichiers(TestCase):
+    def test_contenu_ne_correspondant_pas_a_l_extension_est_refuse(self):
+        from django.core.exceptions import ValidationError
+        from utilisateurs.validators import valider_extension_justificatif
+        faux = SimpleUploadedFile("a.pdf", b"MZ\x90\x00 pas un pdf")
+        with self.assertRaises(ValidationError):
+            valider_extension_justificatif(faux)
+        vrai = SimpleUploadedFile("a.pdf", b"%PDF-1.4 contenu")
+        valider_extension_justificatif(vrai)
+
+
+class MediaPublique(TestCase):
+    def test_seuls_photos_et_logos_sont_publics(self):
+        self.assertEqual(self.client.get('/media/messagerie/fichiers/secret.pdf').status_code, 404)
+        self.assertEqual(self.client.get('/media/utilisateurs/justificatifs/acte.pdf').status_code, 404)
+
+
+class AuthentificationDurcie(BaseDonnees):
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_blocage_apres_echecs_repetes(self):
+        client = APIClient()
+        for _ in range(5):
+            r = client.post('/api/auth/login/', {'email': 'el1@t.cm', 'password': 'mauvais-mdp'}, format='json')
+            self.assertEqual(r.status_code, 400)
+        r = client.post('/api/auth/login/', {'email': 'el1@t.cm', 'password': 'motdepasse123'}, format='json')
+        self.assertEqual(r.status_code, 429)
+
+    def test_connexion_normale_reinitialise_le_compteur(self):
+        client = APIClient()
+        for _ in range(3):
+            client.post('/api/auth/login/', {'email': 'el1@t.cm', 'password': 'faux'}, format='json')
+        r = client.post('/api/auth/login/', {'email': 'el1@t.cm', 'password': 'motdepasse123'}, format='json')
+        self.assertEqual(r.status_code, 200)
+
+    def test_mot_de_passe_courant_refuse_a_l_inscription(self):
+        r = APIClient().post('/api/auth/register/', {
+            'email': 'n@t.cm', 'nom': 'N', 'prenom': 'N', 'role': 'parent', 'type_lien_eleve': 'Père',
+            'password': 'password', 'password2': 'password',
+        }, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_changement_de_mot_de_passe_revoque_les_refresh_tokens(self):
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+        refresh = RefreshToken.for_user(self.eleve1)
+        self.auth(self.eleve1)
+        r = self.client.post('/api/auth/changer-mot-de-passe/', {
+            'ancien_mot_de_passe': 'motdepasse123', 'nouveau_mot_de_passe': 'NouveauSecret-2026',
+        }, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(BlacklistedToken.objects.filter(token__jti=refresh['jti']).exists())
+
+    def test_pas_de_lien_de_reinitialisation_pour_un_compte_suspendu(self):
+        from django.core import mail
+        self.eleve1.statut_validation = Utilisateur.StatutValidation.SUSPENDU
+        self.eleve1.save()
+        r = APIClient().post('/api/auth/mot-de-passe-oublie/', {'email': 'el1@t.cm'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_justificatif_expose_via_vue_authentifiee(self):
+        self.proviseur.justificatif = SimpleUploadedFile("acte.pdf", b"%PDF-1.4 x")
+        self.proviseur.statut_validation = Utilisateur.StatutValidation.CODE_VALIDE
+        self.proviseur.save()
+        self.auth(self.admin)
+        r = self.client.get('/api/auth/comptes-en-attente/')
+        ligne = [c for c in r.data if c['id'] == self.proviseur.id][0]
+        self.assertEqual(ligne['justificatif'], f'/api/auth/justificatif/{self.proviseur.id}/')
+
+
+class RecommandationsAcces(BaseDonnees):
+    def test_matrice_recommandations(self):
+        url = '/api/recommandations/'
+        cible = {'eleve_id': self.eleve1.id}
+        self.auth(self.enc1)
+        self.assertEqual(self.client.get(url, cible).status_code, 403)     # encadreur : non
+        self.auth(self.eleve2)
+        self.assertEqual(self.client.get(url, cible).status_code, 403)     # autre élève : non
+        self.auth(self.parent)
+        self.assertEqual(self.client.get(url, cible).status_code, 200)     # parent lié : oui
+        self.auth(self.proviseur)
+        self.assertEqual(self.client.get(url, cible).status_code, 200)
+        self.auth(self.eleve1)
+        self.assertEqual(self.client.get(url).status_code, 200)            # soi-même
+
+
+class TicketWebSocket(BaseDonnees):
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_ticket_a_usage_unique(self):
+        from messagerie.tickets import consommer_ticket
+        self.auth(self.eleve1)
+        r = self.client.post('/api/messagerie/ticket/')
+        self.assertEqual(r.status_code, 200)
+        ticket = r.data['ticket']
+        self.assertEqual(consommer_ticket(ticket), self.eleve1.id)
+        self.assertIsNone(consommer_ticket(ticket))          # déjà utilisé
+        self.assertIsNone(consommer_ticket('falsifie'))
+
+    def test_ticket_exige_l_authentification(self):
+        self.assertEqual(APIClient().post('/api/messagerie/ticket/').status_code, 401)
+
+
+class AccesNonAuthentifie(TestCase):
+    def test_endpoints_proteges_sans_jeton(self):
+        client = APIClient()
+        for url in ['/api/clubs/', '/api/activites/', '/api/inscriptions/', '/api/participations/',
+                    '/api/notifications/', '/api/messagerie/salons/', '/api/recommandations/',
+                    '/api/predictions/statistiques-globales/', '/api/auth/utilisateurs/',
+                    '/api/auth/parents/', '/api/auth/profil/', '/api/annees-scolaires/']:
+            self.assertEqual(client.get(url).status_code, 401, url)

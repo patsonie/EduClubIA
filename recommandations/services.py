@@ -1,20 +1,60 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from clubs.models import Club
-from inscriptions.models import Inscription
+import re
+import unicodedata
+
+import joblib
 import numpy as np
 import pandas as pd
+from django.conf import settings
+from django.db.models import Count, Q
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import NearestNeighbors
-from utilisateurs.models import Utilisateur
+
+from clubs.models import Club
+from inscriptions.models import Inscription
+
+# Mots vides français minimaux (sklearn n'en fournit pas pour le français).
+MOTS_VIDES = frozenset(
+    "le la les un une des du de d l et ou en au aux ce ces cette dans par pour sur avec sans son sa ses "
+    "leur leurs qui que quoi dont est sont etre a ont avoir il elle ils elles nous vous je tu on se ne pas "
+    "plus tres aussi mais donc car comme entre vers chez club clubs".split()
+)
 
 
+def normaliser(texte):
+    """Minuscules, sans accents."""
+    texte = unicodedata.normalize('NFKD', texte or '')
+    return ''.join(c for c in texte if not unicodedata.combining(c)).lower()
 
-def construire_texte_profil_eleve(eleve):
+
+def analyser_texte(texte):
+    """Découpage en mots normalisés, sans mots vides ni mots trop courts."""
+    return [m for m in re.findall(r'[a-z0-9]+', normaliser(texte)) if len(m) > 2 and m not in MOTS_VIDES]
+
+
+def nouveau_vectoriseur():
+    """Vectoriseur TF-IDF commun à l'entraînement, à la prédiction et au repli à la volée."""
+    return TfidfVectorizer(analyzer=analyser_texte, sublinear_tf=True)
+
+
+_CACHE_MODELES = {}
+
+
+def charger_modele(chemin):
+    """Charge un modèle joblib avec cache invalidé par la date de modification du fichier."""
+    mtime = chemin.stat().st_mtime
+    entree = _CACHE_MODELES.get(str(chemin))
+    if entree and entree[0] == mtime:
+        return entree[1]
+    objet = joblib.load(chemin)
+    _CACHE_MODELES[str(chemin)] = (mtime, objet)
+    return objet
+
+
+def construire_texte_profil_eleve(eleve, inclure_historique=True):
     """
-    Construit un texte représentant le profil de l'élève à partir de :
-    - ses centres d'intérêt déclarés
-    - sa filière
-    - les catégories des clubs auxquels il a déjà été inscrit (comportement passé)
+    Texte représentant le profil de l'élève : centres d'intérêt, filière et
+    (optionnellement) catégories des clubs déjà rejoints.
     """
     elements = []
 
@@ -24,13 +64,13 @@ def construire_texte_profil_eleve(eleve):
     if eleve.filiere:
         elements.append(eleve.filiere)
 
-    categories_passees = Inscription.objects.filter(
-        eleve=eleve
-    ).exclude(
-        statut=Inscription.Statut.REFUSEE
-    ).values_list('club__categorie', flat=True)
-
-    elements.extend(categories_passees)
+    if inclure_historique:
+        categories_passees = Inscription.objects.filter(
+            eleve=eleve
+        ).exclude(
+            statut__in=[Inscription.Statut.REFUSEE, Inscription.Statut.ANNULEE]
+        ).values_list('club__categorie', flat=True)
+        elements.extend(categories_passees)
 
     return " ".join(elements) if elements else ""
 
@@ -48,6 +88,16 @@ def clubs_deja_rejoints(eleve):
     ).values_list('club_id', flat=True)
 
 
+def mots_communs_profil_club(texte_eleve, texte_club):
+    """Mots (normalisés) présents à la fois dans le profil de l'élève et dans le texte du club."""
+    mots_club = set(analyser_texte(texte_club))
+    vus = []
+    for mot in analyser_texte(texte_eleve):
+        if mot in mots_club and mot not in vus:
+            vus.append(mot)
+    return vus
+
+
 def generer_explication(eleve, club, mots_communs):
     """Génère une explication lisible à partir des mots-clés communs détectés."""
     if not mots_communs:
@@ -63,12 +113,10 @@ def generer_explication(eleve, club, mots_communs):
 def calculer_recommandations_content_based(eleve, top_n=10):
     """
     PIPELINE DE PRÉDICTION (content-based).
-    Utilise le modèle entraîné et persisté (joblib) si disponible ; sinon,
-    calcule à la volée (comportement de repli, utile avant le premier entraînement).
+    Utilise le modèle entraîné et persisté (joblib) s'il est à jour par rapport
+    aux clubs actifs ; sinon calcule à la volée (avant le premier entraînement,
+    ou si des clubs ont été créés/désactivés depuis).
     """
-    import joblib
-    from django.conf import settings
-
     texte_eleve = construire_texte_profil_eleve(eleve)
     if not texte_eleve.strip():
         return []
@@ -78,172 +126,170 @@ def calculer_recommandations_content_based(eleve, top_n=10):
     chemin_ids = settings.IA_MODELES_DIR / 'tfidf_club_ids.pkl'
 
     ids_deja_rejoints = set(clubs_deja_rejoints(eleve))
+    clubs_actifs = {c.id: c for c in Club.objects.filter(statut=Club.Statut.ACTIF)}
 
-    if chemin_vectorizer.exists() and chemin_matrice.exists() and chemin_ids.exists():
-        # --- Utilisation du modèle entraîné (pipeline de prédiction pur) ---
-        vectorizer = joblib.load(chemin_vectorizer)
-        matrice_clubs = joblib.load(chemin_matrice)
-        club_ids = joblib.load(chemin_ids)
+    modele_disponible = chemin_vectorizer.exists() and chemin_matrice.exists() and chemin_ids.exists()
+    if modele_disponible:
+        club_ids = charger_modele(chemin_ids)
+        modele_disponible = set(club_ids) == set(clubs_actifs)  # modèle périmé sinon
 
+    if modele_disponible:
+        # --- Utilisation du modèle entraîné ---
+        vectorizer = charger_modele(chemin_vectorizer)
+        matrice_clubs = charger_modele(chemin_matrice)
         vecteur_eleve = vectorizer.transform([texte_eleve])
         similarites = cosine_similarity(vecteur_eleve, matrice_clubs)[0]
+        candidats = list(zip(club_ids, similarites))
+    else:
+        # --- Repli : calcul à la volée sur les clubs actifs ---
+        clubs = [c for c in clubs_actifs.values() if c.id not in ids_deja_rejoints]
+        if not clubs:
+            return []
+        corpus = [texte_eleve] + [construire_texte_profil_club(c) for c in clubs]
+        try:
+            matrice_tfidf = nouveau_vectoriseur().fit_transform(corpus)
+        except ValueError:  # vocabulaire vide
+            return []
+        similarites = cosine_similarity(matrice_tfidf[0:1], matrice_tfidf[1:])[0]
+        candidats = list(zip([c.id for c in clubs], similarites))
 
-        clubs_par_id = {c.id: c for c in Club.objects.filter(id__in=club_ids)}
-        mots_eleve = set(w.lower() for w in texte_eleve.split())
-
-        resultats = []
-        for club_id, score in zip(club_ids, similarites):
-            if club_id in ids_deja_rejoints or club_id not in clubs_par_id:
-                continue
-            club = clubs_par_id[club_id]
-            texte_club = construire_texte_profil_club(club).lower()
-            mots_communs = [mot for mot in mots_eleve if mot in texte_club and len(mot) > 2]
-
-            resultats.append({
-                "club": club,
-                "score": round(float(score) * 100, 2),
-                "explication": generer_explication(eleve, club, mots_communs),
-            })
-
-        resultats.sort(key=lambda x: x["score"], reverse=True)
-        return resultats[:top_n]
-
-    # --- Repli : calcul à la volée (aucun entraînement effectué pour l'instant) ---
-    clubs = list(Club.objects.filter(statut='actif').exclude(id__in=ids_deja_rejoints))
-    if not clubs:
-        return []
-
-    textes_clubs = [construire_texte_profil_club(club) for club in clubs]
-    corpus = [texte_eleve] + textes_clubs
-    vectorizer = TfidfVectorizer(stop_words=None)
-    matrice_tfidf = vectorizer.fit_transform(corpus)
-
-    vecteur_eleve = matrice_tfidf[0:1]
-    vecteurs_clubs = matrice_tfidf[1:]
-    similarites = cosine_similarity(vecteur_eleve, vecteurs_clubs)[0]
-
-    mots_eleve = set(w.lower() for w in texte_eleve.split())
     resultats = []
-    for club, score in zip(clubs, similarites):
-        texte_club = construire_texte_profil_club(club).lower()
-        mots_communs = [mot for mot in mots_eleve if mot in texte_club and len(mot) > 2]
+    for club_id, score in candidats:
+        club = clubs_actifs.get(club_id)
+        if club is None or club_id in ids_deja_rejoints:
+            continue
+        mots = mots_communs_profil_club(texte_eleve, construire_texte_profil_club(club))
         resultats.append({
             "club": club,
             "score": round(float(score) * 100, 2),
-            "explication": generer_explication(eleve, club, mots_communs),
+            "explication": generer_explication(eleve, club, mots),
         })
 
     resultats.sort(key=lambda x: x["score"], reverse=True)
     return resultats[:top_n]
 
 
-def calculer_recommandations_collaboratives(eleve, top_n=10, k_voisins=5):
-    """
-    PIPELINE DE PRÉDICTION (collaboratif).
-    Utilise le modèle KNN entraîné et persisté si disponible et si l'élève
-    faisait partie des données d'entraînement ; sinon, calcule à la volée.
-    """
-    import joblib
-    from django.conf import settings
-
-    chemin_modele = settings.IA_MODELES_DIR / 'knn_modele.pkl'
-    chemin_matrice = settings.IA_MODELES_DIR / 'knn_matrice_eleve_club.pkl'
-
-    ids_deja_rejoints = set(clubs_deja_rejoints(eleve))
-
-    if chemin_modele.exists() and chemin_matrice.exists():
-        modele = joblib.load(chemin_modele)
-        matrice = joblib.load(chemin_matrice)
-
-        if eleve.id in matrice.index:
-            index_eleve = matrice.index.get_loc(eleve.id)
-            distances, indices_voisins = modele.kneighbors([matrice.iloc[index_eleve].values])
-
-            scores_clubs = {}
-            for distance, idx_voisin in zip(distances[0], indices_voisins[0]):
-                id_eleve_voisin = matrice.index[idx_voisin]
-                if id_eleve_voisin == eleve.id:
-                    continue
-                similarite = 1 - distance
-                clubs_du_voisin = matrice.columns[matrice.iloc[idx_voisin].values == 1]
-                for club_id in clubs_du_voisin:
-                    if club_id in ids_deja_rejoints:
-                        continue
-                    scores_clubs[club_id] = scores_clubs.get(club_id, 0) + similarite
-
-            if scores_clubs:
-                score_max = max(scores_clubs.values())
-                if score_max > 0:
-                    return {cid: round((s / score_max) * 100, 2) for cid, s in scores_clubs.items()}
-            return {}
-
-    # --- Repli : calcul à la volée (élève absent du dernier entraînement, ou aucun modèle) ---
-    matrice = construire_matrice_eleve_club()
-    if matrice.empty or eleve.id not in matrice.index:
-        return {}
-
-    nb_voisins_possibles = min(k_voisins + 1, len(matrice))
-    if nb_voisins_possibles < 2:
-        return {}
-
-    modele = NearestNeighbors(n_neighbors=nb_voisins_possibles, metric='cosine')
-    modele.fit(matrice.values)
-
-    index_eleve = matrice.index.get_loc(eleve.id)
+def _scores_par_voisins(matrice, modele, eleve_id, ids_deja_rejoints):
+    """Somme des similarités des voisins de l'élève, par club (hors clubs déjà rejoints)."""
+    index_eleve = matrice.index.get_loc(eleve_id)
     distances, indices_voisins = modele.kneighbors([matrice.iloc[index_eleve].values])
 
     scores_clubs = {}
     for distance, idx_voisin in zip(distances[0], indices_voisins[0]):
-        id_eleve_voisin = matrice.index[idx_voisin]
-        if id_eleve_voisin == eleve.id:
+        if matrice.index[idx_voisin] == eleve_id:
             continue
         similarite = 1 - distance
-        clubs_du_voisin = matrice.columns[matrice.iloc[idx_voisin].values == 1]
-        for club_id in clubs_du_voisin:
+        for club_id in matrice.columns[matrice.iloc[idx_voisin].values == 1]:
+            club_id = int(club_id)
             if club_id in ids_deja_rejoints:
                 continue
             scores_clubs[club_id] = scores_clubs.get(club_id, 0) + similarite
-
-    if not scores_clubs:
-        return {}
-    score_max = max(scores_clubs.values())
-    if score_max > 0:
-        scores_clubs = {cid: round((s / score_max) * 100, 2) for cid, s in scores_clubs.items()}
     return scores_clubs
 
 
+def calculer_recommandations_collaboratives(eleve, top_n=10, k_voisins=5):
+    """
+    PIPELINE DE PRÉDICTION (collaboratif, KNN cosinus sur la matrice élève × club).
+    Utilise le modèle persisté si l'élève en faisait partie ; sinon calcule à la volée.
+    Ne retourne que des clubs actifs. Retour : {club_id: score 0..100}.
+    """
+    chemin_modele = settings.IA_MODELES_DIR / 'knn_modele.pkl'
+    chemin_matrice = settings.IA_MODELES_DIR / 'knn_matrice_eleve_club.pkl'
+
+    ids_deja_rejoints = set(clubs_deja_rejoints(eleve))
+    scores_clubs = None
+
+    if chemin_modele.exists() and chemin_matrice.exists():
+        modele = charger_modele(chemin_modele)
+        matrice = charger_modele(chemin_matrice)
+        if eleve.id in matrice.index:
+            scores_clubs = _scores_par_voisins(matrice, modele, eleve.id, ids_deja_rejoints)
+
+    if scores_clubs is None:
+        # --- Repli : calcul à la volée (élève absent du dernier entraînement, ou aucun modèle) ---
+        matrice = construire_matrice_eleve_club()
+        if matrice.empty or eleve.id not in matrice.index:
+            return {}
+        nb_voisins_possibles = min(k_voisins + 1, len(matrice))
+        if nb_voisins_possibles < 2:
+            return {}
+        modele = NearestNeighbors(n_neighbors=nb_voisins_possibles, metric='cosine')
+        modele.fit(matrice.values)
+        scores_clubs = _scores_par_voisins(matrice, modele, eleve.id, ids_deja_rejoints)
+
+    if not scores_clubs:
+        return {}
+
+    # Seuls les clubs actifs sont recommandables
+    ids_actifs = set(
+        Club.objects.filter(id__in=scores_clubs.keys(), statut=Club.Statut.ACTIF).values_list('id', flat=True)
+    )
+    scores_clubs = {cid: s for cid, s in scores_clubs.items() if cid in ids_actifs}
+    if not scores_clubs:
+        return {}
+
+    score_max = max(scores_clubs.values())
+    if score_max <= 0:
+        return {}
+    return {cid: round((s / score_max) * 100, 2) for cid, s in scores_clubs.items()}
 
 
 def construire_matrice_eleve_club():
     """
-    Construit une matrice (DataFrame pandas) élève × club, où chaque cellule vaut 1
-    si l'élève a été inscrit (validée ou en attente) à ce club, sinon 0.
+    Matrice élève × club (DataFrame pandas) : 1 si l'élève a été inscrit
+    (validée, en attente ou archivée) à ce club, sinon 0.
     """
     inscriptions = Inscription.objects.filter(
         statut__in=[Inscription.Statut.VALIDEE, Inscription.Statut.EN_ATTENTE, Inscription.Statut.ARCHIVEE]
     ).values('eleve_id', 'club_id')
 
-    if not inscriptions:
+    donnees = list(inscriptions)
+    if not donnees:
         return pd.DataFrame()
 
-    df = pd.DataFrame(list(inscriptions))
+    df = pd.DataFrame(donnees)
     df['valeur'] = 1
-    matrice = df.pivot_table(
+    return df.pivot_table(
         index='eleve_id', columns='club_id', values='valeur', fill_value=0, aggfunc='max'
     )
-    return matrice
 
 
+def recommandations_populaires(eleve, top_n=5):
+    """
+    Repli « cold start » : clubs actifs les plus populaires (effectif validé),
+    hors clubs déjà rejoints. Score = popularité relative (0..100).
+    """
+    ids_deja_rejoints = set(clubs_deja_rejoints(eleve))
+    clubs = list(
+        Club.objects.filter(statut=Club.Statut.ACTIF)
+        .exclude(id__in=ids_deja_rejoints)
+        .annotate(nb=Count('inscriptions', filter=Q(inscriptions__statut=Inscription.Statut.VALIDEE)))
+        .order_by('-nb', 'nom')[:top_n]
+    )
+    if not clubs:
+        return []
+    maximum = max(c.nb for c in clubs) or 1
+    return [
+        {
+            "club": c,
+            "score": round(c.nb / maximum * 100, 2),
+            "explication": (
+                f"Le club {c.nom} est l'un des plus populaires de l'établissement. "
+                "Complétez vos centres d'intérêt pour des recommandations personnalisées."
+            ),
+            "score_profil": 0,
+            "score_comportement": 0,
+        }
+        for c in clubs
+    ]
 
 
 def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_comportement=0.4):
     """
     Combine le content-based filtering (profil) et le collaborative filtering
-    (comportement) selon la formule :
-    Score Final = 60% Similarité Profil + 40% Similarité Comportement
-
-    Si le collaborative filtering ne renvoie aucun résultat (élève nouveau, peu de
-    données), le score repose entièrement sur le content-based filtering.
+    (comportement) : Score Final = 60% Similarité Profil + 40% Similarité Comportement.
+    Sans signal collaboratif, le score repose sur le profil seul ; sans aucun signal
+    (nouvel élève), repli sur les clubs populaires.
 
     Retourne une liste de dicts triée par score décroissant :
     [{"club": Club, "score": float, "explication": str, "score_profil": float,
@@ -256,22 +302,23 @@ def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_c
 
     scores_comportement = calculer_recommandations_collaboratives(eleve)
 
-    # S'assurer que tous les clubs candidats sont couverts (profil ET/OU comportement)
-    tous_ids_clubs = set(scores_profil.keys()) | set(scores_comportement.keys())
-
+    tous_ids_clubs = set(scores_profil) | set(scores_comportement)
     if not tous_ids_clubs:
-        return []
+        return recommandations_populaires(eleve, top_n=min(top_n, 5))
 
-    # Récupérer les clubs manquants (présents seulement côté comportement)
-    ids_manquants = set(scores_comportement.keys()) - set(clubs_par_id.keys())
+    ids_manquants = set(scores_comportement) - set(clubs_par_id)
     if ids_manquants:
-        for club in Club.objects.filter(id__in=ids_manquants):
+        for club in Club.objects.filter(id__in=ids_manquants, statut=Club.Statut.ACTIF):
             clubs_par_id[club.id] = club
 
     resultats_finaux = []
     a_du_comportement = bool(scores_comportement)
 
     for club_id in tous_ids_clubs:
+        club = clubs_par_id.get(club_id)
+        if not club:
+            continue
+
         score_p = scores_profil.get(club_id, 0)
         score_c = scores_comportement.get(club_id, 0)
 
@@ -279,10 +326,6 @@ def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_c
             score_final = round(poids_profil * score_p + poids_comportement * score_c, 2)
         else:
             score_final = round(score_p, 2)
-
-        club = clubs_par_id.get(club_id)
-        if not club:
-            continue
 
         explication = explications.get(club_id) or generer_explication(eleve, club, [])
         if score_c > 0:
@@ -298,4 +341,3 @@ def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_c
 
     resultats_finaux.sort(key=lambda x: x["score"], reverse=True)
     return resultats_finaux[:top_n]
-

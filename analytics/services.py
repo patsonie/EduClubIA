@@ -1,5 +1,4 @@
 from datetime import timedelta
-from django.utils import timezone
 from participations.models import Participation
 from inscriptions.models import Inscription
 import numpy as np
@@ -60,12 +59,16 @@ def determiner_niveau_risque(score):
     return 'faible'
 
 
-def calculer_risques_desengagement_tous_eleves():
+def calculer_risques_desengagement_tous_eleves(**filtre):
     """
-    Calcule le risque de désengagement pour toutes les inscriptions actives,
-    et retourne la liste des résultats (sans les sauvegarder — la vue s'en charge).
+    Calcule le risque de désengagement pour les inscriptions actives (éventuellement
+    restreintes par `filtre`, ex. eleve__in / club__in) et retourne la liste des
+    résultats (sans les sauvegarder — la vue s'en charge).
+    Méthode : score à base de règles (taux de présence global/récent), pas d'apprentissage.
     """
-    inscriptions_actives = Inscription.objects.filter(statut=Inscription.Statut.VALIDEE)
+    inscriptions_actives = Inscription.objects.filter(
+        statut=Inscription.Statut.VALIDEE, **filtre
+    ).select_related('eleve', 'club')
 
     resultats = []
     for inscription in inscriptions_actives:
@@ -90,17 +93,9 @@ def predire_nombre_participants(activite):
     if prediction_modele_entraine is not None:
         return prediction_modele_entraine
 
-    # --- Repli : calcul à la volée (comme avant, si pas encore entraîné) ---
-    activites_passees = Activite.objects.filter(
-        club=activite.club,
-        statut=Activite.Statut.TERMINEE,
-    ).exclude(id=activite.id).order_by('date')
-
-    effectifs = []
-    for act in activites_passees:
-        nb = act.participations.filter(statut='present').count()
-        if nb > 0:
-            effectifs.append(nb)
+    # --- Repli : calcul à la volée (aucun modèle entraîné pour ce club) ---
+    from .ml_pipeline import effectifs_historiques
+    effectifs = effectifs_historiques(activite.club, exclure_activite_id=activite.id)
 
     if not effectifs:
         return max(round(activite.club.nombre_membres_actuels * 0.5), 1)
@@ -109,17 +104,11 @@ def predire_nombre_participants(activite):
         return round(sum(effectifs) / len(effectifs))
 
     X = np.arange(len(effectifs)).reshape(-1, 1)
-    y = np.array(effectifs)
-
-    modele = LinearRegression()
-    modele.fit(X, y)
-
-    prediction = modele.predict([[len(effectifs)]])[0]
-    prediction = max(round(prediction), 0)
-
+    modele = LinearRegression().fit(X, np.array(effectifs))
+    prediction = max(round(modele.predict([[len(effectifs)]])[0]), 0)
     return min(prediction, activite.club.nombre_max_membres)
-    
-    
+
+
 def detecter_clubs_en_difficulte(seuil_baisse=30):
     """
     Détecte les clubs ayant une baisse d'activité significative, en comparant :

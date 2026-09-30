@@ -6,6 +6,9 @@ from .permissions import EstAdminOuProviseurOuLectureSeule
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
+from django.db.models import Count, Q
+from utilisateurs.perimetre import peut_gerer_club
 
 
 class ClubViewSet(viewsets.ModelViewSet):
@@ -14,7 +17,9 @@ class ClubViewSet(viewsets.ModelViewSet):
     Recherche : ?search=robotique
     Filtre : ?categorie=scientifique&statut=actif
     """
-    queryset = Club.objects.all()
+    queryset = Club.objects.select_related('responsable').annotate(
+        membres_annotes=Count('inscriptions', filter=Q(inscriptions__statut='validee'))
+    )
     permission_classes = [EstAdminOuProviseurOuLectureSeule]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['categorie', 'statut', 'responsable']
@@ -31,6 +36,12 @@ class ClubViewSet(viewsets.ModelViewSet):
         """GET /api/clubs/{id}/membres/ — liste des élèves inscrits validés dans ce club."""
         from inscriptions.models import Inscription
         club = self.get_object()
+        user = request.user
+        est_membre = user.role == 'eleve' and Inscription.objects.filter(
+            club=club, eleve=user, statut=Inscription.Statut.VALIDEE
+        ).exists()
+        if not (peut_gerer_club(user, club) or est_membre):
+            raise PermissionDenied("Vous n'avez pas accès à la liste des membres de ce club.")
         inscriptions = Inscription.objects.filter(
             club=club, statut=Inscription.Statut.VALIDEE
         ).select_related('eleve')
@@ -51,7 +62,22 @@ class ClubViewSet(viewsets.ModelViewSet):
         """GET /api/clubs/{id}/statistiques/ — statistiques agrégées du club."""
         from activites.models import Activite
         from participations.models import Participation
-        
+
+        club = self.get_object()
+        activites = Activite.objects.filter(club=club)
+        participations = Participation.objects.filter(inscription__club=club)
+        total_participations = participations.count()
+        presences = participations.filter(statut='present').count()
+        taux_moyen = round((presences / total_participations * 100), 1) if total_participations else 0
+
+        return Response({
+            "nombre_activites": activites.count(),
+            "activites_terminees": activites.filter(statut=Activite.Statut.TERMINEE).count(),
+            "activites_a_venir": activites.filter(statut__in=['planifiee', 'validee']).count(),
+            "taux_participation_moyen": taux_moyen,
+            "nombre_membres": club.nombre_membres_actuels,
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'])
     def retirer_membre(self, request, pk=None):
         """POST /api/clubs/{id}/retirer_membre/  body: {"eleve_id": <id>}"""
@@ -78,18 +104,3 @@ class ClubViewSet(viewsets.ModelViewSet):
         )
 
         return Response({"message": "Membre retiré du club."}, status=status.HTTP_200_OK)
-
-        club = self.get_object()
-        activites = Activite.objects.filter(club=club)
-        participations = Participation.objects.filter(inscription__club=club)
-        total_participations = participations.count()
-        presences = participations.filter(statut='present').count()
-        taux_moyen = round((presences / total_participations * 100), 1) if total_participations else 0
-
-        return Response({
-            "nombre_activites": activites.count(),
-            "activites_terminees": activites.filter(statut=Activite.Statut.TERMINEE).count(),
-            "activites_a_venir": activites.filter(statut__in=['planifiee', 'validee']).count(),
-            "taux_participation_moyen": taux_moyen,
-            "nombre_membres": club.nombre_membres_actuels,
-        }, status=status.HTTP_200_OK)

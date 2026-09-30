@@ -50,7 +50,9 @@ def notifier_nouvelle_activite(activite):
     """Notifie tous les élèves inscrits (validés) au club concerné par la nouvelle activité."""
     from inscriptions.models import Inscription
 
-    inscriptions = Inscription.objects.filter(club=activite.club, statut=Inscription.Statut.VALIDEE)
+    inscriptions = Inscription.objects.filter(
+        club=activite.club, statut=Inscription.Statut.VALIDEE
+    ).select_related('eleve__preference_notification')
     for inscription in inscriptions:
         creer_notification(
             destinataire=inscription.eleve,
@@ -79,7 +81,13 @@ def notifier_refus_inscription(inscription):
     
 def notifier_parents(eleve, type_notification, titre, message):
     """Envoie une notification à tous les parents liés à un élève."""
-    for parent in eleve.parents:
+    from utilisateurs.models import RelationParentEleve
+
+    relations = RelationParentEleve.objects.filter(
+        enfant=eleve, statut=RelationParentEleve.Statut.VALIDEE
+    ).select_related('parent__preference_notification')
+    for relation in relations:
+        parent = relation.parent
         creer_notification(
             destinataire=parent,
             type_notification=type_notification,
@@ -99,7 +107,9 @@ def notifier_parents_validation_inscription(inscription):
 
 def notifier_parents_nouvelle_activite(activite):
     from inscriptions.models import Inscription
-    inscriptions = Inscription.objects.filter(club=activite.club, statut=Inscription.Statut.VALIDEE)
+    inscriptions = Inscription.objects.filter(
+        club=activite.club, statut=Inscription.Statut.VALIDEE
+    ).select_related('eleve')
     for inscription in inscriptions:
         notifier_parents(
             inscription.eleve,

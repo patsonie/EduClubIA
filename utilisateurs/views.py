@@ -25,7 +25,9 @@ from .serializers import (
     DemandeReinitialisationSerializer, ConfirmationReinitialisationSerializer,
     ValidationCodeSerializer,
 )
-from .permissions import EstAdminOuProviseur, LoginRateThrottle
+from rest_framework.exceptions import PermissionDenied
+from .permissions import EstAdminOuProviseur, EstAdministrateur, LoginRateThrottle, ChangementMotDePasseThrottle
+from .authentication import revoquer_jetons
 from .services import construire_dashboard_parent
 
 
@@ -38,12 +40,15 @@ def get_ip_client(request):
 
 def verifier_droit_validation(request_user, compte_cible):
     """
-    Règle métier : un responsable pédagogique peut valider élèves et encadreurs,
-    mais seul un administrateur peut valider un autre responsable pédagogique.
+    Règle métier : seul un administrateur peut valider/refuser un responsable
+    pédagogique ou un autre administrateur. Un responsable pédagogique ne peut
+    agir que sur les élèves, encadreurs et parents.
     """
-    if compte_cible.role == Utilisateur.Role.PROVISEUR:
-        return request_user.role == Utilisateur.Role.ADMINISTRATEUR
-    return request_user.role in [Utilisateur.Role.ADMINISTRATEUR, Utilisateur.Role.PROVISEUR]
+    if request_user.role == Utilisateur.Role.ADMINISTRATEUR:
+        return True
+    if request_user.role == Utilisateur.Role.PROVISEUR:
+        return compte_cible.role not in [Utilisateur.Role.ADMINISTRATEUR, Utilisateur.Role.PROVISEUR]
+    return False
 
 
 class InscriptionView(generics.CreateAPIView):
@@ -56,7 +61,7 @@ class InscriptionView(generics.CreateAPIView):
         'eleve': "Votre compte a été créé. Il est en attente de validation.",
         'encadreur': "Votre demande d'inscription a été envoyée. Elle sera examinée par l'administration.",
         'proviseur': "Votre demande d'inscription a été enregistrée avec succès. Votre compte est actuellement en attente de validation. Un code d'invitation vous sera envoyé par l'administrateur après vérification de votre acte de nomination.",
-        'parent': "Votre compte a été créé. Vous pouvez maintenant être associé à votre enfant.",
+        'parent': "Votre compte a été créé. Le rattachement à votre enfant sera effectif après validation par l'administration.",
     }
 
     def create(self, request, *args, **kwargs):
@@ -146,6 +151,7 @@ class ProfilView(generics.RetrieveUpdateAPIView):
 class ChangementMotDePasseView(APIView):
     """POST /api/auth/changer-mot-de-passe/ — Modifier son mot de passe."""
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ChangementMotDePasseThrottle]
 
     def post(self, request):
         serializer = ChangementMotDePasseSerializer(data=request.data, context={'request': request})
@@ -154,6 +160,7 @@ class ChangementMotDePasseView(APIView):
         utilisateur = request.user
         utilisateur.set_password(serializer.validated_data['nouveau_mot_de_passe'])
         utilisateur.save()
+        revoquer_jetons(utilisateur)
 
         JournalActivite.objects.create(
             utilisateur=utilisateur,
@@ -177,13 +184,35 @@ class ParentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def lier_enfant(self, request, pk=None):
-        """POST /api/parents/{id}/lier_enfant/  body: {"enfant": <id_eleve>}"""
+        """
+        POST /api/parents/{id}/lier_enfant/  body: {"enfant": <id_eleve>}
+        Crée un lien validé, ou valide une demande de rattachement en attente.
+        """
         parent = self.get_object()
-        data = {'parent': parent.id, 'enfant': request.data.get('enfant')}
+        enfant_id = request.data.get('enfant')
+
+        demande = RelationParentEleve.objects.filter(
+            parent=parent, enfant_id=enfant_id, statut=RelationParentEleve.Statut.EN_ATTENTE
+        ).first()
+        if demande:
+            demande.statut = RelationParentEleve.Statut.VALIDEE
+            demande.cree_par = request.user
+            demande.save()
+            return Response(RelationParentEleveSerializer(demande).data, status=status.HTTP_200_OK)
+
+        data = {'parent': parent.id, 'enfant': enfant_id}
         serializer = RelationParentEleveSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(cree_par=request.user)
+        serializer.save(cree_par=request.user, statut=RelationParentEleve.Statut.VALIDEE)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'])
+    def demandes_rattachement(self, request):
+        """GET /api/auth/parents/demandes_rattachement/ — demandes parent→élève en attente de validation."""
+        demandes = RelationParentEleve.objects.filter(
+            statut=RelationParentEleve.Statut.EN_ATTENTE
+        ).select_related('parent', 'enfant')
+        return Response(RelationParentEleveSerializer(demandes, many=True).data)
 
     @action(detail=True, methods=['post'])
     def delier_enfant(self, request, pk=None):
@@ -283,7 +312,7 @@ class ValiderCompteView(APIView):
                 message=(
                     f"Bonjour {utilisateur.prenom},\n\n"
                     f"Félicitations ! Votre compte Responsable pédagogique est désormais actif.\n"
-                    f"Vous pouvez vous connecter sur http://127.0.0.1:8000/connexion/"
+                    f"Vous pouvez vous connecter sur {settings.FRONTEND_BASE_URL}/connexion/"
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[utilisateur.email],
@@ -312,6 +341,7 @@ class RefuserCompteView(APIView):
         utilisateur.statut_validation = Utilisateur.StatutValidation.REFUSE
         utilisateur.motif_refus = request.data.get('motif', '')
         utilisateur.save()
+        revoquer_jetons(utilisateur)
 
         return Response({"message": f"Compte de {utilisateur.nom_complet} refusé."}, status=status.HTTP_200_OK)
 
@@ -320,7 +350,7 @@ class CodeInvitationViewSet(viewsets.ModelViewSet):
     """CRUD des codes d'invitation/activation, réservé aux administrateurs."""
     queryset = CodeInvitation.objects.all()
     serializer_class = CodeInvitationSerializer
-    permission_classes = [EstAdminOuProviseur]
+    permission_classes = [EstAdministrateur]
 
     def perform_create(self, serializer):
         code = secrets.token_hex(4).upper()
@@ -329,29 +359,67 @@ class CodeInvitationViewSet(viewsets.ModelViewSet):
 
 class UtilisateurAdminViewSet(viewsets.ModelViewSet):
     """
-    CRUD complet des utilisateurs, tous rôles, réservé aux administrateurs.
+    Gestion des utilisateurs.
+    - Administrateur : accès complet (tous rôles).
+    - Responsable pédagogique : lecture, suspension et réactivation des élèves,
+      encadreurs et parents uniquement ; jamais les administrateurs ni les autres
+      responsables, et aucune création/modification/suppression.
     Recherche : ?search=nom  |  Filtre : ?role=eleve&statut_validation=en_attente
     """
-    queryset = Utilisateur.objects.all().order_by('-date_joined')
     serializer_class = UtilisateurAdminSerializer
     permission_classes = [EstAdminOuProviseur]
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['nom', 'prenom', 'email', 'matricule']
     filterset_fields = ['role', 'statut_validation', 'is_active']
 
+    ACTIONS_ECRITURE_ADMIN = ('create', 'update', 'partial_update', 'destroy')
+
+    def get_queryset(self):
+        queryset = Utilisateur.objects.all().order_by('-date_joined')
+        if self.request.user.role != Utilisateur.Role.ADMINISTRATEUR:
+            queryset = queryset.exclude(
+                role__in=[Utilisateur.Role.ADMINISTRATEUR, Utilisateur.Role.PROVISEUR]
+            )
+        return queryset
+
+    def get_permissions(self):
+        if self.action in self.ACTIONS_ECRITURE_ADMIN:
+            return [EstAdministrateur()]
+        return super().get_permissions()
+
+    def _verifier_cible(self, request, utilisateur):
+        if utilisateur.id == request.user.id:
+            return Response(
+                {"error": "Vous ne pouvez pas modifier votre propre statut."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None
+
     @action(detail=True, methods=['post'])
     def suspendre(self, request, pk=None):
         utilisateur = self.get_object()
+        refus = self._verifier_cible(request, utilisateur)
+        if refus:
+            return refus
         utilisateur.statut_validation = Utilisateur.StatutValidation.SUSPENDU
         utilisateur.save()
+        revoquer_jetons(utilisateur)
         return Response({"message": f"{utilisateur.nom_complet} suspendu."}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def reactiver(self, request, pk=None):
         utilisateur = self.get_object()
+        refus = self._verifier_cible(request, utilisateur)
+        if refus:
+            return refus
         utilisateur.statut_validation = Utilisateur.StatutValidation.VALIDE
         utilisateur.save()
         return Response({"message": f"{utilisateur.nom_complet} réactivé."}, status=status.HTTP_200_OK)
+
+    def perform_destroy(self, instance):
+        if instance.id == self.request.user.id:
+            raise PermissionDenied("Vous ne pouvez pas supprimer votre propre compte.")
+        instance.delete()
 
 
 class TelechargerJustificatifView(APIView):
@@ -368,7 +436,13 @@ class TelechargerJustificatifView(APIView):
         except Utilisateur.DoesNotExist:
             raise Http404("Utilisateur introuvable.")
 
-        est_gestionnaire = request.user.role in ['administrateur', 'proviseur']
+        est_gestionnaire = (
+            request.user.role == 'administrateur'
+            or (
+                request.user.role == 'proviseur'
+                and utilisateur.role not in ['administrateur', 'proviseur']
+            )
+        )
         est_lui_meme = request.user.id == utilisateur.id
 
         if not (est_gestionnaire or est_lui_meme):
@@ -380,11 +454,12 @@ class TelechargerJustificatifView(APIView):
         if not utilisateur.justificatif:
             raise Http404("Aucun justificatif pour cet utilisateur.")
 
-        chemin_fichier = utilisateur.justificatif.path
-        if not os.path.exists(chemin_fichier):
+        try:
+            fichier = utilisateur.justificatif.open('rb')
+        except (FileNotFoundError, OSError):
             raise Http404("Fichier introuvable sur le serveur.")
 
-        return FileResponse(open(chemin_fichier, 'rb'), as_attachment=False)
+        return FileResponse(fichier, as_attachment=False)
 
 
 class DemandeReinitialisationMotDePasseView(APIView):
@@ -401,12 +476,20 @@ class DemandeReinitialisationMotDePasseView(APIView):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
 
-        utilisateur = Utilisateur.objects.filter(email=email).first()
+        utilisateur = Utilisateur.objects.filter(
+            email=email, is_active=True,
+            statut_validation__in=[
+                Utilisateur.StatutValidation.VALIDE,
+                Utilisateur.StatutValidation.EN_ATTENTE,
+                Utilisateur.StatutValidation.CODE_ENVOYE,
+                Utilisateur.StatutValidation.CODE_VALIDE,
+            ],
+        ).first()
 
         if utilisateur:
             uidb64 = urlsafe_base64_encode(force_bytes(utilisateur.pk))
             token = default_token_generator.make_token(utilisateur)
-            lien_reinitialisation = f"http://127.0.0.1:8000/reinitialiser-mot-de-passe/{uidb64}/{token}/"
+            lien_reinitialisation = f"{settings.FRONTEND_BASE_URL}/reinitialiser-mot-de-passe/{uidb64}/{token}/"
 
             send_mail(
                 subject="EduClubIA — Réinitialisation de votre mot de passe",
@@ -444,6 +527,7 @@ class ConfirmerReinitialisationMotDePasseView(APIView):
         utilisateur = serializer.validated_data['utilisateur']
         utilisateur.set_password(serializer.validated_data['nouveau_mot_de_passe'])
         utilisateur.save()
+        revoquer_jetons(utilisateur)
 
         JournalActivite.objects.create(
             utilisateur=utilisateur,
@@ -497,7 +581,7 @@ class EnvoyerCodeValidationView(APIView):
                 f"{utilisateur.code_validation_compte}\n\n"
                 f"Rendez-vous sur la page de validation de compte et saisissez ce code "
                 f"avec votre adresse email pour poursuivre votre inscription.\n\n"
-                f"http://127.0.0.1:8000/validation-compte/"
+                f"{settings.FRONTEND_BASE_URL}/validation-compte/"
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[utilisateur.email],
@@ -571,7 +655,7 @@ class RenvoyerCodeExpireView(APIView):
                     f"Bonjour {utilisateur.prenom},\n\n"
                     f"Voici votre nouveau code d'invitation (valable 24 heures) :\n\n"
                     f"{utilisateur.code_validation_compte}\n\n"
-                    f"http://127.0.0.1:8000/validation-compte/"
+                    f"{settings.FRONTEND_BASE_URL}/validation-compte/"
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[utilisateur.email],

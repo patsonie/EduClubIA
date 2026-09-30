@@ -1,6 +1,36 @@
 import os
 from django.core.exceptions import ValidationError
 
+# Signatures (« magic bytes ») attendues par extension : évite un exécutable renommé en .pdf.
+SIGNATURES = {
+    '.pdf': [b'%PDF'],
+    '.jpg': [b'\xff\xd8\xff'],
+    '.jpeg': [b'\xff\xd8\xff'],
+    '.png': [b'\x89PNG\r\n\x1a\n'],
+    '.webp': [b'RIFF'],
+    '.doc': [b'\xd0\xcf\x11\xe0'],
+    '.docx': [b'PK\x03\x04'],
+}
+
+
+def valider_contenu_fichier(fichier):
+    """Vérifie que le début du fichier correspond à son extension."""
+    extension = os.path.splitext(fichier.name)[1].lower()
+    signatures = SIGNATURES.get(extension)
+    if not signatures:
+        return
+    try:
+        position = fichier.tell()
+    except (AttributeError, OSError):
+        position = None
+    debut = fichier.read(16)
+    if position is not None:
+        fichier.seek(position)
+    else:
+        fichier.seek(0)
+    if not any(debut.startswith(sig) for sig in signatures):
+        raise ValidationError("Le contenu du fichier ne correspond pas à son extension.")
+
 EXTENSIONS_JUSTIFICATIF_AUTORISEES = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx']
 EXTENSIONS_PHOTO_AUTORISEES = ['.jpg', '.jpeg', '.png', '.webp']
 TAILLE_MAX_FICHIER_MO = 5
@@ -13,6 +43,7 @@ def valider_extension_justificatif(fichier):
         raise ValidationError(
             f"Format non autorisé. Formats acceptés : {', '.join(EXTENSIONS_JUSTIFICATIF_AUTORISEES)}."
         )
+    valider_contenu_fichier(fichier)
 
 
 def valider_extension_photo(fichier):
@@ -37,3 +68,4 @@ def valider_fichier_message(fichier):
             f"Format non autorisé. Formats acceptés : {', '.join(EXTENSIONS_MESSAGE_AUTORISEES)}."
         )
     valider_taille_fichier(fichier)
+    valider_contenu_fichier(fichier)

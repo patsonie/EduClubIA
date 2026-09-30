@@ -149,10 +149,21 @@ class InscriptionParentAPITest(APITestCase):
         utilisateur = Utilisateur.objects.get(email="parentapi@lycee.cm")
         self.assertEqual(utilisateur.statut_validation, Utilisateur.StatutValidation.VALIDE)
 
-    def test_inscription_parent_sans_lien_eleve_refusee(self):
+    def test_inscription_parent_sans_matricule_enfant_acceptee(self):
+        """Le rattachement à un enfant est optionnel et validé plus tard par un gestionnaire."""
         url = reverse('inscription')
         data = {
             "email": "parentsanslien@lycee.cm", "nom": "Test", "prenom": "Test",
+            "password": "motdepasse123", "password2": "motdepasse123", "role": "parent",
+            "type_lien_eleve": "Tuteur",
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_inscription_parent_sans_type_lien_refusee(self):
+        url = reverse('inscription')
+        data = {
+            "email": "parentsanslien2@lycee.cm", "nom": "Test", "prenom": "Test",
             "password": "motdepasse123", "password2": "motdepasse123", "role": "parent",
         }
         response = self.client.post(url, data, format='json')
@@ -203,19 +214,20 @@ class InscriptionEleveEtEncadreurStatutTest(APITestCase):
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_inscription_proviseur_avec_code_valide_reussie(self):
-        CodeInvitation.objects.create(code="CODE123", role_cible=CodeInvitation.RoleCible.RESPONSABLE_PEDAGOGIQUE)
+    def test_inscription_proviseur_avec_justificatif_reussie(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
         url = reverse('inscription')
         data = {
             "email": "provvalide@lycee.cm", "nom": "Test", "prenom": "Proviseur",
             "password": "motdepasse123", "password2": "motdepasse123", "role": "proviseur",
-            "code_invitation": "CODE123", "fonction": "Direction des études",
+            "etablissement": "Lycée Test", "fonction": "Direction des études",
+            "justificatif": SimpleUploadedFile("acte.pdf", b"%PDF-1.4 acte de nomination"),
         }
-        response = self.client.post(url, data, format='json')
-
+        response = self.client.post(url, data, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        code = CodeInvitation.objects.get(code="CODE123")
-        self.assertTrue(code.utilise)
+        utilisateur = Utilisateur.objects.get(email="provvalide@lycee.cm")
+        self.assertEqual(utilisateur.statut_validation, Utilisateur.StatutValidation.EN_ATTENTE)
+        self.assertTrue(utilisateur.code_validation_compte.startswith("RP-"))
 
 
 class ConnexionCompteEnAttenteTest(APITestCase):
@@ -403,3 +415,84 @@ class UtilisateurAdminViewSetTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.eleve.refresh_from_db()
         self.assertEqual(self.eleve.statut_validation, Utilisateur.StatutValidation.VALIDE)
+
+
+class SecuritePhase1Test(APITestCase):
+    """Phase 1 : escalade de privilèges et rattachement parent."""
+
+    def setUp(self):
+        self.admin = Utilisateur.objects.create_user(
+            email="adm@lycee.cm", password="motdepasse123", nom="A", prenom="Admin",
+            role=Utilisateur.Role.ADMINISTRATEUR,
+        )
+        self.proviseur = Utilisateur.objects.create_user(
+            email="prov@lycee.cm", password="motdepasse123", nom="P", prenom="Prov",
+            role=Utilisateur.Role.PROVISEUR, etablissement="Lycée X",
+        )
+        self.eleve = Utilisateur.objects.create_user(
+            email="el@lycee.cm", password="motdepasse123", nom="E", prenom="Eleve",
+            role=Utilisateur.Role.ELEVE, matricule="MATP1",
+        )
+
+    def test_proviseur_ne_voit_pas_les_administrateurs(self):
+        self.client.force_authenticate(self.proviseur)
+        response = self.client.get('/api/auth/utilisateurs/')
+        emails = [u['email'] for u in response.data]
+        self.assertNotIn("adm@lycee.cm", emails)
+        self.assertIn("el@lycee.cm", emails)
+
+    def test_proviseur_ne_peut_pas_modifier_un_role(self):
+        self.client.force_authenticate(self.proviseur)
+        response = self.client.patch(
+            f'/api/auth/utilisateurs/{self.eleve.id}/', {'role': 'administrateur'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.eleve.refresh_from_db()
+        self.assertEqual(self.eleve.role, Utilisateur.Role.ELEVE)
+
+    def test_proviseur_ne_peut_pas_suspendre_un_admin(self):
+        self.client.force_authenticate(self.proviseur)
+        response = self.client.post(f'/api/auth/utilisateurs/{self.admin.id}/suspendre/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_proviseur_ne_peut_pas_refuser_un_admin(self):
+        self.client.force_authenticate(self.proviseur)
+        response = self.client.post(f'/api/auth/comptes/{self.admin.id}/refuser/', {'motif': 'x'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_peut_modifier_un_role(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            f'/api/auth/utilisateurs/{self.eleve.id}/', {'role': 'encadreur'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_parent_inscrit_avec_matricule_est_en_attente(self):
+        response = self.client.post(reverse('inscription'), {
+            "email": "par@lycee.cm", "nom": "Par", "prenom": "Ent",
+            "password": "motdepasse123", "password2": "motdepasse123",
+            "role": "parent", "type_lien_eleve": "Père", "matricule_enfant": "MATP1",
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        parent = Utilisateur.objects.get(email="par@lycee.cm")
+        self.assertEqual(parent.enfants.count(), 0)
+        self.assertEqual(parent.relations_enfants.get().statut, 'en_attente')
+
+    def test_matricule_inconnu_ne_revele_rien(self):
+        response = self.client.post(reverse('inscription'), {
+            "email": "par2@lycee.cm", "nom": "Par", "prenom": "Ent",
+            "password": "motdepasse123", "password2": "motdepasse123",
+            "role": "parent", "type_lien_eleve": "Père", "matricule_enfant": "INCONNU",
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_gestionnaire_valide_la_demande(self):
+        parent = Utilisateur.objects.create_user(
+            email="par3@lycee.cm", password="motdepasse123", nom="P", prenom="P",
+            role=Utilisateur.Role.PARENT,
+        )
+        RelationParentEleve.objects.create(parent=parent, enfant=self.eleve, statut='en_attente')
+        self.client.force_authenticate(self.proviseur)
+        response = self.client.post(f'/api/auth/parents/{parent.id}/lier_enfant/', {'enfant': self.eleve.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(parent.enfants.count(), 1)

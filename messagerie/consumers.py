@@ -1,18 +1,23 @@
 import json
+import time
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+
+DELAI_MIN_ENTRE_MESSAGES = 0.5  # secondes : limite anti-flood par connexion
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
     """
     Gère une connexion WebSocket pour un salon de discussion donné.
     URL : ws/messagerie/<salon_id>/?token=<access_token>
+    Les droits sont revérifiés à chaque message (suspension, retrait du club...).
     """
 
     async def connect(self):
         self.salon_id = self.scope['url_route']['kwargs']['salon_id']
         self.groupe_salon = f'salon_{self.salon_id}'
         self.user = self.scope['user']
+        self.dernier_envoi = 0.0
 
         if not self.user or not self.user.is_authenticated or not self.user.is_active:
             await self.close(code=4001)
@@ -30,14 +35,28 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if hasattr(self, 'groupe_salon'):
             await self.channel_layer.group_discard(self.groupe_salon, self.channel_name)
 
-    async def receive(self, text_data):
+    async def receive(self, text_data=None, bytes_data=None):
         try:
             data = json.loads(text_data)
         except (TypeError, json.JSONDecodeError):
             return
-        contenu = data.get('contenu', '').strip()
+        if not isinstance(data, dict):
+            return
+        contenu = data.get('contenu', '')
+        if not isinstance(contenu, str):
+            return
+        contenu = contenu.strip()
 
         if not contenu or len(contenu) > 2000:
+            return
+
+        maintenant = time.monotonic()
+        if maintenant - self.dernier_envoi < DELAI_MIN_ENTRE_MESSAGES:
+            return
+        self.dernier_envoi = maintenant
+
+        if not await self.verifier_acces_salon():
+            await self.close(code=4003)
             return
 
         message = await self.enregistrer_message(contenu)
@@ -61,34 +80,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'expediteur_id': event['expediteur_id'],
             'expediteur_nom': event['expediteur_nom'],
             'date_envoi': event['date_envoi'],
+            'fichier_url': event.get('fichier_url'),
         }))
 
     @database_sync_to_async
     def verifier_acces_salon(self):
         from .models import SalonDiscussion
-        from inscriptions.models import Inscription
+        from .permissions import utilisateur_a_acces_salon
+        from utilisateurs.models import Utilisateur
 
         try:
-            salon = SalonDiscussion.objects.get(id=self.salon_id)
-        except SalonDiscussion.DoesNotExist:
+            salon = SalonDiscussion.objects.select_related('club', 'activite__club').get(id=self.salon_id)
+            # Rechargement : le statut du compte a pu changer depuis la connexion.
+            utilisateur = Utilisateur.objects.get(id=self.user.id)
+        except (SalonDiscussion.DoesNotExist, Utilisateur.DoesNotExist):
             return False
 
-        if (
-            not self.user.is_active
-            or self.user.statut_validation != 'valide'
-        ):
-            return False
-
-        if self.user.role in ['administrateur', 'proviseur', 'encadreur']:
-            return True
-
-        club = salon.club or (salon.activite.club if salon.activite else None)
-        if not club:
-            return False
-
-        return Inscription.objects.filter(
-            eleve=self.user, club=club, statut=Inscription.Statut.VALIDEE
-        ).exists()
+        return utilisateur_a_acces_salon(utilisateur, salon)
 
     @database_sync_to_async
     def enregistrer_message(self, contenu):

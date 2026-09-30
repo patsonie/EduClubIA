@@ -55,12 +55,17 @@ async function ouvrirSalon(salonId, nomSalon) {
     connecterWebSocket(salonId);
 }
 
-function connecterWebSocket(salonId) {
+async function connecterWebSocket(salonId) {
     if (socketActuel) socketActuel.close();
 
-    const token = obtenirToken();
+    // Ticket à usage unique (30 s) : le JWT n'est jamais placé dans l'URL du WebSocket.
+    const reponseTicket = await appelApi('/messagerie/ticket/', { method: 'POST' });
+    if (!reponseTicket || !reponseTicket.ticket) {
+        console.warn('Ticket WebSocket indisponible.');
+        return;
+    }
     const protocoleWS = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    socketActuel = new WebSocket(`${protocoleWS}//${window.location.host}/ws/messagerie/${salonId}/?token=${token}`);
+    socketActuel = new WebSocket(`${protocoleWS}//${window.location.host}/ws/messagerie/${salonId}/?ticket=${encodeURIComponent(reponseTicket.ticket)}`);
 
     socketActuel.onmessage = (event) => {
         const message = JSON.parse(event.data);

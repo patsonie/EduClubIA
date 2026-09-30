@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     RisqueDesengagementView, PredictionParticipationView,
-    ClubEnDifficulteView, StatistiquesGlobalesView, RapportDetailleView,
+    ClubEnDifficulteView, StatistiquesGlobalesView, RapportDetailleView, RapportPDFView,
 )
 
 urlpatterns = [
@@ -10,4 +10,5 @@ urlpatterns = [
     path('clubs-difficulte/', ClubEnDifficulteView.as_view(), name='clubs-difficulte'),
     path('statistiques-globales/', StatistiquesGlobalesView.as_view(), name='statistiques-globales'),
     path('rapport-detaille/', RapportDetailleView.as_view(), name='rapport-detaille'),
+    path('rapport-detaille/pdf/', RapportPDFView.as_view(), name='rapport-detaille-pdf'),
 ]

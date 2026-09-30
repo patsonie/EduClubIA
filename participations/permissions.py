@@ -15,3 +15,9 @@ class EstGestionnaireOuLectureSeule(permissions.BasePermission):
             request.user and request.user.is_authenticated
             and request.user.role in ['administrateur', 'proviseur', 'encadreur']
         )
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        from utilisateurs.perimetre import peut_gerer_club
+        return peut_gerer_club(request.user, obj.activite.club)

@@ -5,7 +5,9 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 import secrets
+from .securite import verifier_non_bloque, enregistrer_echec, reinitialiser
 from django.utils import timezone
+from django.contrib.auth.password_validation import validate_password
 
 
 class InscriptionSerializer(serializers.ModelSerializer):
@@ -25,7 +27,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
             'id', 'email', 'nom', 'prenom', 'role', 'telephone', 'date_naissance', 'genre',
             'password', 'password2',
             # Élève
-            'matricule', 'classe',
+            'matricule', 'classe', 'filiere', 'centres_interet',
             # Parent
             'type_lien_eleve', 'matricule_enfant',
             # Encadreur
@@ -37,6 +39,8 @@ class InscriptionSerializer(serializers.ModelSerializer):
             'role': {'required': True},
             'matricule': {'required': False},
             'classe': {'required': False},
+            'filiere': {'required': False},
+            'centres_interet': {'required': False},
             'type_lien_eleve': {'required': False},
             'type_encadreur': {'required': False},
             'fonction': {'required': False},
@@ -45,6 +49,10 @@ class InscriptionSerializer(serializers.ModelSerializer):
             'justificatif': {'required': False},
             'service_responsabilite': {'required': False},
         }
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
 
     def validate_role(self, value):
         if value == Utilisateur.Role.ADMINISTRATEUR:
@@ -66,13 +74,6 @@ class InscriptionSerializer(serializers.ModelSerializer):
         elif role == Utilisateur.Role.PARENT:
             if not attrs.get('type_lien_eleve'):
                 raise serializers.ValidationError({"type_lien_eleve": "Veuillez préciser votre lien avec l'élève."})
-            matricule_enfant = attrs.get('matricule_enfant')
-            if matricule_enfant and not Utilisateur.objects.filter(
-                matricule=matricule_enfant, role=Utilisateur.Role.ELEVE
-            ).exists():
-                raise serializers.ValidationError(
-                    {"matricule_enfant": "Aucun élève ne correspond à ce matricule."}
-                )
 
         elif role == Utilisateur.Role.ENCADREUR:
             type_encadreur = attrs.get('type_encadreur')
@@ -139,7 +140,12 @@ class InscriptionSerializer(serializers.ModelSerializer):
                 matricule=matricule_enfant, role=Utilisateur.Role.ELEVE
             ).first()
             if enfant:
-                RelationParentEleve.objects.get_or_create(parent=utilisateur, enfant=enfant)
+                # Simple demande de rattachement : un gestionnaire doit la valider.
+                # Le matricule seul ne prouve pas la filiation.
+                RelationParentEleve.objects.get_or_create(
+                    parent=utilisateur, enfant=enfant,
+                    defaults={'statut': RelationParentEleve.Statut.EN_ATTENTE},
+                )
 
         return utilisateur
 
@@ -171,9 +177,12 @@ class ConnexionSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
+        verifier_non_bloque('login', attrs['email'])
         utilisateur = authenticate(username=attrs['email'], password=attrs['password'])
         if not utilisateur:
+            enregistrer_echec('login', attrs['email'])
             raise serializers.ValidationError("Email ou mot de passe incorrect.")
+        reinitialiser('login', attrs['email'])
         if not utilisateur.is_active:
             raise serializers.ValidationError("Ce compte est désactivé.")
 
@@ -197,6 +206,10 @@ class ChangementMotDePasseSerializer(serializers.Serializer):
 
     ancien_mot_de_passe = serializers.CharField(write_only=True)
     nouveau_mot_de_passe = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_nouveau_mot_de_passe(self, value):
+        validate_password(value, self.context['request'].user)
+        return value
 
     def validate_ancien_mot_de_passe(self, value):
         utilisateur = self.context['request'].user
@@ -227,7 +240,7 @@ class ParentSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password', None)
         validated_data['role'] = Utilisateur.Role.PARENT
         parent = Utilisateur.objects.create_user(
-            password=password or Utilisateur.objects.make_random_password(),
+            password=password or secrets.token_urlsafe(16),
             **validated_data,
         )
         return parent
@@ -250,8 +263,8 @@ class RelationParentEleveSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RelationParentEleve
-        fields = ['id', 'parent', 'parent_nom', 'enfant', 'enfant_nom', 'date_creation', 'cree_par']
-        read_only_fields = ['id', 'date_creation', 'cree_par']
+        fields = ['id', 'parent', 'parent_nom', 'enfant', 'enfant_nom', 'statut', 'date_creation', 'cree_par']
+        read_only_fields = ['id', 'statut', 'date_creation', 'cree_par']
 
     def validate_parent(self, value):
         if value.role != Utilisateur.Role.PARENT:
@@ -266,6 +279,11 @@ class RelationParentEleveSerializer(serializers.ModelSerializer):
 
 class CompteEnAttenteSerializer(serializers.ModelSerializer):
     nom_complet = serializers.ReadOnlyField()
+    justificatif = serializers.SerializerMethodField()
+
+    def get_justificatif(self, obj):
+        # URL de la vue authentifiée, jamais le chemin de stockage.
+        return f'/api/auth/justificatif/{obj.id}/' if obj.justificatif else None
 
     class Meta:
         model = Utilisateur
@@ -327,6 +345,7 @@ class ConfirmationReinitialisationSerializer(serializers.Serializer):
         if not default_token_generator.check_token(utilisateur, attrs['token']):
             raise serializers.ValidationError("Ce lien de réinitialisation est invalide ou a expiré.")
 
+        validate_password(attrs['nouveau_mot_de_passe'], utilisateur)
         attrs['utilisateur'] = utilisateur
         return attrs
 
@@ -338,12 +357,7 @@ class ValidationCodeSerializer(serializers.Serializer):
     code = serializers.CharField()
 
     def validate(self, attrs):
-        
-        if attrs.get('matricule') == '':
-            attrs['matricule'] = None
-
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Les deux mots de passe ne correspondent pas."})
+        verifier_non_bloque('code', attrs['email'])
         utilisateur = Utilisateur.objects.filter(
             email=attrs['email'], role=Utilisateur.Role.PROVISEUR
         ).first()
@@ -362,8 +376,12 @@ class ValidationCodeSerializer(serializers.Serializer):
         if utilisateur.date_expiration_code and timezone.now() > utilisateur.date_expiration_code:
             raise serializers.ValidationError("Ce code de validation a expiré. Veuillez renvoyer un autre code.")
 
-        if not utilisateur.code_validation_compte or utilisateur.code_validation_compte != attrs['code'].strip().upper():
+        attendu = utilisateur.code_validation_compte or ''
+        fourni = attrs['code'].strip().upper()
+        if not attendu or not secrets.compare_digest(attendu.encode(), fourni.encode()):
+            enregistrer_echec('code', attrs['email'])
             raise serializers.ValidationError("Code de validation incorrect.")
+        reinitialiser('code', attrs['email'])
 
         attrs['utilisateur'] = utilisateur
         return attrs

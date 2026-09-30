@@ -4,7 +4,42 @@ function obtenirToken() {
     return localStorage.getItem('access_token');
 }
 
-async function appelApi(endpoint, options = {}) {
+let rafraichissementEnCours = null;
+
+/** Obtient un nouvel access token à partir du refresh token (rotation incluse). */
+async function rafraichirToken() {
+    const refresh = localStorage.getItem('refresh_token');
+    if (!refresh) return false;
+    if (!rafraichissementEnCours) {
+        rafraichissementEnCours = (async () => {
+            try {
+                const reponse = await fetch(`${API_BASE}/auth/refresh/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh }),
+                });
+                if (!reponse.ok) return false;
+                const donnees = await reponse.json();
+                localStorage.setItem('access_token', donnees.access);
+                if (donnees.refresh) localStorage.setItem('refresh_token', donnees.refresh);
+                return true;
+            } catch (e) {
+                return false;
+            } finally {
+                setTimeout(() => { rafraichissementEnCours = null; }, 0);
+            }
+        })();
+    }
+    return rafraichissementEnCours;
+}
+
+function redirigerVersConnexion() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.href = '/connexion/';
+}
+
+async function appelApi(endpoint, options = {}, dejaRafraichi = false) {
     const token = obtenirToken();
     const reponse = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
@@ -16,11 +51,20 @@ async function appelApi(endpoint, options = {}) {
     });
 
     if (reponse.status === 401) {
-        window.location.href = '/connexion/';
+        // Token expiré : une seule tentative de renouvellement avant de renvoyer à la connexion.
+        if (!dejaRafraichi && await rafraichirToken()) {
+            return appelApi(endpoint, options, true);
+        }
+        redirigerVersConnexion();
         return null;
     }
 
-    return reponse.json();
+    try {
+        return await reponse.json();
+    } catch (e) {
+        // Réponse sans corps JSON (204, erreur serveur HTML...)
+        return reponse.ok ? {} : { error: `Erreur ${reponse.status}` };
+    }
 }
 
 function afficherMenuSelonRole(role) {
@@ -61,9 +105,21 @@ async function initialiserEntete() {
 
 document.getElementById('lien-deconnexion')?.addEventListener('click', async (e) => {
     e.preventDefault();
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/connexion/';
+    // Révocation côté serveur du refresh token (blacklist), puis nettoyage local.
+    const refresh = localStorage.getItem('refresh_token');
+    if (refresh) {
+        try {
+            await fetch(`${API_BASE}/auth/logout/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${obtenirToken()}`,
+                },
+                body: JSON.stringify({ refresh }),
+            });
+        } catch (err) { /* déconnexion locale malgré tout */ }
+    }
+    redirigerVersConnexion();
 });
 
 document.addEventListener('DOMContentLoaded', initialiserEntete);

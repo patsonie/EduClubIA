@@ -17,6 +17,12 @@ class AnneeScolaire(models.Model):
         verbose_name = "Année scolaire"
         verbose_name_plural = "Années scolaires"
         ordering = ['-date_debut']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['est_active'], condition=models.Q(est_active=True),
+                name='une_seule_annee_active',
+            )
+        ]
 
     def __str__(self):
         return self.libelle

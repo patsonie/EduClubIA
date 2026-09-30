@@ -47,6 +47,9 @@ class Club(models.Model):
 
     @property
     def nombre_membres_actuels(self):
+        annote = getattr(self, 'membres_annotes', None)
+        if annote is not None:
+            return annote
         return self.inscriptions.filter(statut='validee').count()
 
     @property

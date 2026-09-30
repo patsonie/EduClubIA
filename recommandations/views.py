@@ -42,7 +42,7 @@ class RecommandationListeView(APIView):
             except Utilisateur.DoesNotExist:
                 return Response({"error": "Élève introuvable."}, status=status.HTTP_404_NOT_FOUND)
 
-            est_gestionnaire = request.user.role in ['administrateur', 'proviseur', 'encadreur']
+            est_gestionnaire = request.user.role in ['administrateur', 'proviseur']
             est_parent_de_cet_eleve = (
                 request.user.role == 'parent'
                 and request.user.enfants.filter(id=eleve_cible.id).exists()
@@ -63,6 +63,10 @@ class RecommandationListeView(APIView):
         resultats = calculer_recommandations_hybrides(eleve)
 
         recommandations_sauvegardees = []
+        # Supprime les recommandations obsolètes de cet élève (club plus recommandé / plus actif).
+        Recommandation.objects.filter(eleve=eleve).exclude(
+            club_id__in=[r["club"].id for r in resultats]
+        ).delete()
         for resultat in resultats:
             recommandation, _ = Recommandation.objects.update_or_create(
                 eleve=eleve,
@@ -93,6 +97,11 @@ class ReentrainementIAView(APIView):
 
     def post(self, request):
         type_declenchement = request.data.get('type_declenchement', 'manuel')
+        if type_declenchement not in HistoriqueEntrainement.TypeDeclenchement.values:
+            return Response(
+                {"error": f"type_declenchement invalide. Valeurs : {HistoriqueEntrainement.TypeDeclenchement.values}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         debut = time.time()
         resultats = {}
 
@@ -108,16 +117,28 @@ class ReentrainementIAView(APIView):
 
             duree = round(time.time() - debut, 2)
 
+            entrainements = [resultats['content_based'], resultats['collaboratif'], resultats['participation']]
+            echecs = [k for k in ('content_based', 'collaboratif', 'participation')
+                      if resultats[k].get('statut') == 'echec']
+            statut = (
+                HistoriqueEntrainement.Statut.ECHEC if len(echecs) == len(entrainements)
+                else HistoriqueEntrainement.Statut.SUCCES
+            )
             historique = HistoriqueEntrainement.objects.create(
                 type_declenchement=type_declenchement,
-                statut=HistoriqueEntrainement.Statut.SUCCES,
+                statut=statut,
                 metriques=json.dumps(resultats, default=str),
+                message_erreur=(f"Modèles non entraînés : {', '.join(echecs)}" if echecs else None),
                 declenche_par=request.user if request.user.is_authenticated else None,
                 duree_secondes=duree,
             )
 
             return Response({
-                "message": "Entraînement des modèles IA terminé avec succès.",
+                "message": (
+                    "Entraînement des modèles IA terminé avec succès."
+                    if not echecs else f"Entraînement terminé, modèles non entraînés (données insuffisantes) : {', '.join(echecs)}."
+                ),
+                "modeles_non_entraines": echecs,
                 "duree_secondes": duree,
                 "resultats": resultats,
                 "historique_id": historique.id,
@@ -143,4 +164,8 @@ class HistoriqueEntrainementView(generics.ListAPIView):
     """GET /api/ia/historique-entrainement/ — historique des exécutions du pipeline."""
     serializer_class = HistoriqueEntrainementSerializer
     permission_classes = [EstAdministrateur]
-    queryset = HistoriqueEntrainement.objects.all()[:20]
+    queryset = HistoriqueEntrainement.objects.select_related('declenche_par').all()
+    pagination_class = None
+
+    def get_queryset(self):
+        return super().get_queryset()[:20]

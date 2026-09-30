@@ -24,6 +24,13 @@ class ActiviteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and request.user.role in ('eleve', 'parent'):
+            data.pop('budget', None)
+        return data
+
 
 class ActiviteListeSerializer(serializers.ModelSerializer):
     club_nom = serializers.CharField(source='club.nom', read_only=True)

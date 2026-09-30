@@ -29,24 +29,33 @@ class InscriptionSerializer(serializers.ModelSerializer):
             'annee_scolaire', 'annee_scolaire_libelle', 'statut',
             'date_inscription', 'date_traitement', 'traite_par', 'historique',
         ]
-        read_only_fields = ['id', 'date_inscription', 'date_traitement', 'traite_par']
+        read_only_fields = ['id', 'statut', 'date_inscription', 'date_traitement', 'traite_par']
         validators = []  # on gère l'unicité manuellement dans validate()
 
     def validate(self, attrs):
         club = attrs.get('club')
         annee_scolaire = attrs.get('annee_scolaire')
-        eleve = attrs.get('eleve') or self.context['request'].user
+        request_user = self.context['request'].user
+        # Un élève ne peut agir que pour lui-même (le champ `eleve` est ignoré pour lui).
+        eleve = request_user if request_user.role == 'eleve' else (attrs.get('eleve') or request_user)
 
-        if Inscription.objects.filter(
-            eleve=eleve, club=club, annee_scolaire=annee_scolaire
-        ).exclude(statut=Inscription.Statut.ANNULEE).exists():
+        if eleve.role != Utilisateur.Role.ELEVE:
+            raise serializers.ValidationError({"eleve": "L'inscription doit concerner un élève."})
+        if club and club.statut != club.Statut.ACTIF:
+            raise serializers.ValidationError({"club": "Ce club n'accepte pas d'inscriptions actuellement."})
+        if annee_scolaire and not annee_scolaire.est_active:
             raise serializers.ValidationError(
-                "Cet élève est déjà inscrit à ce club pour cette année scolaire."
+                {"annee_scolaire": "Les inscriptions ne sont possibles que pour l'année scolaire active."}
             )
 
-        if club and club.places_disponibles <= 0:
+        doublons = Inscription.objects.filter(
+            eleve=eleve, club=club, annee_scolaire=annee_scolaire
+        ).exclude(statut=Inscription.Statut.ANNULEE)
+        if self.instance:
+            doublons = doublons.exclude(pk=self.instance.pk)
+        if club and annee_scolaire and doublons.exists():
             raise serializers.ValidationError(
-                f"Le club {club.nom} a atteint son nombre maximal de membres."
+                "Cet élève est déjà inscrit à ce club pour cette année scolaire."
             )
 
         return attrs
