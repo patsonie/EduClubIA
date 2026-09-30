@@ -15,7 +15,9 @@ from django.conf import settings
 import os
 import secrets
 
-from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation
+from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel
+from .matricules import importer_csv
+from rest_framework.parsers import MultiPartParser
 from .serializers import (
     InscriptionSerializer, UtilisateurSerializer,
     ConnexionSerializer, ChangementMotDePasseSerializer,
@@ -23,7 +25,7 @@ from .serializers import (
     CompteEnAttenteSerializer, CodeInvitationSerializer,
     UtilisateurAdminSerializer,
     DemandeReinitialisationSerializer, ConfirmationReinitialisationSerializer,
-    ValidationCodeSerializer,
+    ValidationCodeSerializer, MatriculeOfficielSerializer,
 )
 from rest_framework.exceptions import PermissionDenied
 from .permissions import EstAdminOuProviseur, EstAdministrateur, LoginRateThrottle, ChangementMotDePasseThrottle
@@ -704,3 +706,55 @@ class RenvoyerCodeExpireView(APIView):
             {"message": "Si un compte est éligible, un nouveau code lui a été envoyé."},
             status=status.HTTP_200_OK,
         )
+
+
+class MatriculeOfficielViewSet(viewsets.ModelViewSet):
+    """
+    Liste officielle des matricules de l'établissement.
+    Lecture : administrateur / responsable pédagogique. Import et suppression : administrateur.
+    POST /api/auth/matricules/importer/  (multipart : fichier=<csv>, role=eleve|encadreur)
+    """
+    serializer_class = MatriculeOfficielSerializer
+    permission_classes = [EstAdminOuProviseur]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['matricule', 'nom', 'prenom', 'classe']
+    filterset_fields = ['role']
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+    queryset = MatriculeOfficiel.objects.all()
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [EstAdminOuProviseur()]
+        return [EstAdministrateur()]
+
+    def get_serializer_context(self):
+        contexte = super().get_serializer_context()
+        contexte['matricules_utilises'] = set(
+            Utilisateur.objects.exclude(matricule__isnull=True).values_list('matricule', flat=True)
+        )
+        return contexte
+
+    def create(self, request, *args, **kwargs):
+        return Response({"error": "Utilisez /matricules/importer/."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @action(detail=False, methods=['post'], url_path='importer', parser_classes=[MultiPartParser])
+    def importer(self, request):
+        fichier = request.FILES.get('fichier')
+        role = request.data.get('role', MatriculeOfficiel.Role.ELEVE)
+        if role not in MatriculeOfficiel.Role.values:
+            return Response({"error": f"role invalide. Valeurs : {MatriculeOfficiel.Role.values}."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not fichier:
+            return Response({"error": "Fichier CSV requis (champ `fichier`)."}, status=status.HTTP_400_BAD_REQUEST)
+        if fichier.size > 2 * 1024 * 1024:
+            return Response({"error": "Fichier trop volumineux (2 Mo maximum)."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            resultat = importer_csv(fichier.read(), role)
+        except (ValueError, UnicodeDecodeError) as erreur:
+            return Response({"error": str(erreur)}, status=status.HTTP_400_BAD_REQUEST)
+        JournalActivite.objects.create(
+            utilisateur=request.user, action="Import de la liste officielle des matricules",
+            details=f"role={role} crees={resultat['crees']} maj={resultat['mis_a_jour']}",
+            adresse_ip=get_ip_client(request),
+        )
+        return Response(resultat, status=status.HTTP_200_OK)

@@ -398,3 +398,93 @@ class ValidationRattachements(BaseDonnees):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data['nombre_enfants'], 0)
         self.assertEqual(r.data['demandes_en_attente'], [self.eleve2.nom_complet])
+
+
+class ListeOfficielleMatricules(BaseDonnees):
+    def _inscrire(self, matricule, nom="Mballa", prenom="Jean", email="nouveau@t.cm", **extra):
+        return APIClient().post('/api/auth/register/', {
+            'email': email, 'nom': nom, 'prenom': prenom, 'role': 'eleve', 'matricule': matricule,
+            'password': 'Secret-Solide-2026', 'password2': 'Secret-Solide-2026', **extra,
+        }, format='json')
+
+    def test_sans_liste_importee_l_inscription_reste_libre(self):
+        self.assertEqual(self._inscrire("LIBRE01").status_code, 201)
+
+    def test_avec_liste_matricule_inconnu_refuse(self):
+        from utilisateurs.models import MatriculeOfficiel
+        MatriculeOfficiel.objects.create(matricule="OFF001", nom="Mballa", prenom="Jean")
+        r = self._inscrire("INCONNU")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('matricule', r.data)
+
+    def test_avec_liste_mauvaise_identite_refusee(self):
+        from utilisateurs.models import MatriculeOfficiel
+        MatriculeOfficiel.objects.create(matricule="OFF001", nom="Mballa", prenom="Jean")
+        r = self._inscrire("OFF001", nom="Usurpateur", prenom="Paul")
+        self.assertEqual(r.status_code, 400)
+        # même message qu'un matricule inconnu : pas d'oracle sur l'existence du matricule
+        self.assertEqual(r.data['matricule'], self._inscrire("INCONNU", email="x@t.cm").data['matricule'])
+
+    def test_identite_tolerante_accents_casse_et_prenom_compose(self):
+        from utilisateurs.models import MatriculeOfficiel
+        MatriculeOfficiel.objects.create(matricule="OFF002", nom="Éboué", prenom="Marie Claire", classe="3ème A")
+        r = self._inscrire("off002", nom="EBOUE", prenom="marie", email="m@t.cm")
+        self.assertEqual(r.status_code, 201)
+        eleve = Utilisateur.objects.get(email="m@t.cm")
+        self.assertEqual(eleve.matricule, "OFF002")   # orthographe officielle
+        self.assertEqual(eleve.classe, "3ème A")      # classe reprise de la liste
+
+    def test_liste_des_encadreurs_independante_de_celle_des_eleves(self):
+        from utilisateurs.models import MatriculeOfficiel
+        MatriculeOfficiel.objects.create(matricule="ENC001", role='encadreur', nom="Kamga", prenom="Luc")
+        self.assertEqual(self._inscrire("LIBRE02", email="e2@t.cm").status_code, 201)  # liste élèves vide
+        r = APIClient().post('/api/auth/register/', {
+            'email': 'enc@t.cm', 'nom': 'Faux', 'prenom': 'Nom', 'role': 'encadreur',
+            'type_encadreur': 'professionnel', 'matricule': 'ENC001',
+            'password': 'Secret-Solide-2026', 'password2': 'Secret-Solide-2026',
+        }, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_import_csv_reserve_a_l_administrateur(self):
+        contenu = "matricule;nom;prenom;classe\nM100;Ngo;Rose;2nde C\nM101;Tala;Paul;\n"
+        fichier = SimpleUploadedFile("eleves.csv", contenu.encode('utf-8'), content_type="text/csv")
+        self.auth(self.proviseur)
+        self.assertEqual(self.client.post('/api/auth/matricules/importer/', {'fichier': fichier}, format='multipart').status_code, 403)
+
+        self.auth(self.admin)
+        fichier = SimpleUploadedFile("eleves.csv", contenu.encode('utf-8'), content_type="text/csv")
+        r = self.client.post('/api/auth/matricules/importer/', {'fichier': fichier, 'role': 'eleve'}, format='multipart')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.data['crees'], r.data['mis_a_jour'], r.data['erreurs']), (2, 0, []))
+
+        fichier = SimpleUploadedFile("eleves.csv", contenu.encode('utf-8'), content_type="text/csv")
+        r = self.client.post('/api/auth/matricules/importer/', {'fichier': fichier}, format='multipart')
+        self.assertEqual((r.data['crees'], r.data['mis_a_jour']), (0, 2))   # réimport idempotent
+
+    def test_import_csv_signale_les_lignes_invalides(self):
+        contenu = "matricule,nom,prenom\nM200,Ngo,Rose\n,Sans,Matricule\nM200,Doublon,Ligne\n"
+        self.auth(self.admin)
+        fichier = SimpleUploadedFile("e.csv", contenu.encode('utf-8'), content_type="text/csv")
+        r = self.client.post('/api/auth/matricules/importer/', {'fichier': fichier}, format='multipart')
+        self.assertEqual(r.data['crees'], 1)
+        self.assertEqual(len(r.data['erreurs']), 2)
+
+    def test_import_csv_colonnes_manquantes(self):
+        self.auth(self.admin)
+        fichier = SimpleUploadedFile("e.csv", b"code,nom\nM1,Ngo\n", content_type="text/csv")
+        r = self.client.post('/api/auth/matricules/importer/', {'fichier': fichier}, format='multipart')
+        self.assertEqual(r.status_code, 400)
+
+    def test_consultation_de_la_liste(self):
+        from utilisateurs.models import MatriculeOfficiel
+        MatriculeOfficiel.objects.create(matricule="M1", nom="Ngo", prenom="Rose")
+        MatriculeOfficiel.objects.create(matricule="M2", nom="Tala", prenom="Paul")  # M2 = eleve2 (compte créé)
+        self.auth(self.proviseur)
+        r = self.client.get('/api/auth/matricules/')
+        self.assertEqual(r.status_code, 200)
+        etat = {m['matricule']: m['compte_cree'] for m in r.data}
+        self.assertEqual(etat, {"M1": True, "M2": True})   # M1, M2 utilisés par eleve1/eleve2 (BaseDonnees)
+        self.auth(self.eleve1)
+        self.assertEqual(self.client.get('/api/auth/matricules/').status_code, 403)
+        self.auth(self.proviseur)
+        self.assertEqual(self.client.delete(f'/api/auth/matricules/{r.data[0]["id"]}/').status_code, 403)

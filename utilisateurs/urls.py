@@ -9,12 +9,14 @@ from .views import (
     TelechargerJustificatifView, DemandeReinitialisationMotDePasseView,
     ConfirmerReinitialisationMotDePasseView, EnvoyerCodeValidationView,
     RegenererCodeValidationView, ValiderCodeCompteView,  RenvoyerCodeExpireView,
+    MatriculeOfficielViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'parents', ParentViewSet, basename='parent')
 router.register(r'codes-invitation', CodeInvitationViewSet, basename='code-invitation')
 router.register(r'utilisateurs', UtilisateurAdminViewSet, basename='utilisateur-admin')
+router.register(r'matricules', MatriculeOfficielViewSet, basename='matricule-officiel')
 
 urlpatterns = [
     path('register/', InscriptionView.as_view(), name='inscription'),

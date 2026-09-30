@@ -1,11 +1,12 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation
+from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 import secrets
 from .securite import verifier_non_bloque, enregistrer_echec, reinitialiser
+from .matricules import trouver_entree_officielle
 from django.utils import timezone
 from django.contrib.auth.password_validation import validate_password
 
@@ -54,6 +55,21 @@ class InscriptionSerializer(serializers.ModelSerializer):
         validate_password(value)
         return value
 
+    @staticmethod
+    def _verifier_liste_officielle(role, attrs):
+        """
+        Si une liste officielle existe pour ce rôle, le matricule doit y figurer avec le même nom et
+        prénom. On adopte l'orthographe officielle (évite les doublons de casse) et la classe officielle.
+        """
+        try:
+            entree = trouver_entree_officielle(role, attrs.get('matricule'), attrs.get('nom'), attrs.get('prenom'))
+        except ValueError as erreur:
+            raise serializers.ValidationError({"matricule": str(erreur)})
+        if entree:
+            attrs['matricule'] = entree.matricule
+            if role == 'eleve' and not attrs.get('classe') and entree.classe:
+                attrs['classe'] = entree.classe
+
     def validate_role(self, value):
         if value == Utilisateur.Role.ADMINISTRATEUR:
             raise serializers.ValidationError(
@@ -70,6 +86,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
         if role == Utilisateur.Role.ELEVE:
             if not attrs.get('matricule'):
                 raise serializers.ValidationError({"matricule": "Le matricule scolaire est requis."})
+            self._verifier_liste_officielle('eleve', attrs)
 
         elif role == Utilisateur.Role.PARENT:
             if not attrs.get('type_lien_eleve'):
@@ -83,6 +100,8 @@ class InscriptionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"matricule": "Le matricule professionnel est requis pour un encadreur professionnel."}
                 )
+            if type_encadreur == Utilisateur.TypeEncadreur.PROFESSIONNEL:
+                self._verifier_liste_officielle('encadreur', attrs)
 
         elif role == Utilisateur.Role.PROVISEUR:
             if not attrs.get('justificatif'):
@@ -394,3 +413,15 @@ class ValidationCodeSerializer(serializers.Serializer):
 
         attrs['utilisateur'] = utilisateur
         return attrs
+
+
+class MatriculeOfficielSerializer(serializers.ModelSerializer):
+    compte_cree = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MatriculeOfficiel
+        fields = ['id', 'matricule', 'role', 'nom', 'prenom', 'classe', 'compte_cree', 'date_import']
+        read_only_fields = fields
+
+    def get_compte_cree(self, obj):
+        return obj.matricule in self.context.get('matricules_utilises', set())

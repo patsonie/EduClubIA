@@ -20,6 +20,24 @@ Plateforme de gestion des clubs et activités extrascolaires pour les établisse
 (`POST /api/auth/parents/{id}/lier_enfant/` avec `{"enfant": <id>}`). Tant qu'elle n'est pas validée,
 le parent n'a accès à aucune donnée de l'élève.
 
+### Liste officielle des matricules
+Pour empêcher qu'un élève (ou encadreur professionnel) s'inscrive avec le matricule d'un autre, importer la liste
+fournie par l'établissement (CSV `matricule,nom,prenom,classe` ; séparateur `,` ou `;`) :
+
+```bash
+python manage.py importer_matricules eleves.csv --role eleve
+python manage.py importer_matricules encadreurs.csv --role encadreur
+```
+
+ou via l'API : `POST /api/auth/matricules/importer/` (administrateur, multipart `fichier` + `role`),
+consultation `GET /api/auth/matricules/` (administrateur / responsable pédagogique) ou l'admin Django.
+
+**Dès qu'une liste existe pour un rôle**, l'inscription publique de ce rôle n'est acceptée que si le matricule figure dans la
+liste **et** que le nom et le prénom correspondent (insensible à la casse et aux accents, prénoms composés tolérés). Le message
+d'erreur est identique pour un matricule inconnu et pour une identité incorrecte. Tant qu'aucune liste n'est importée, l'inscription
+reste libre : **importer la liste avant d'ouvrir les inscriptions**. L'orthographe officielle du matricule et la classe sont
+reprises automatiquement dans le compte.
+
 ## Installation (développement)
 
 ```bash

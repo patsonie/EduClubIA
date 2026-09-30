@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import Utilisateur, JournalActivite, RelationParentEleve
-from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation
+from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel
 
 
 class UtilisateurAdmin(UserAdmin):
@@ -53,3 +53,10 @@ class CodeInvitationAdmin(admin.ModelAdmin):
     list_display = ('code', 'role_cible', 'utilise', 'utilise_par', 'date_creation')
     list_filter = ('role_cible', 'utilise')
     readonly_fields = ('utilise', 'utilise_par', 'date_utilisation')
+
+
+@admin.register(MatriculeOfficiel)
+class MatriculeOfficielAdmin(admin.ModelAdmin):
+    list_display = ('matricule', 'role', 'nom', 'prenom', 'classe')
+    list_filter = ('role',)
+    search_fields = ('matricule', 'nom', 'prenom')

@@ -251,4 +251,30 @@ class CodeInvitation(models.Model):
     def __str__(self):
         statut = "utilisé" if self.utilise else "disponible"
         return f"{self.code} ({self.get_role_cible_display()}, {statut})"
-    
+
+
+class MatriculeOfficiel(models.Model):
+    """
+    Entrée de la liste officielle fournie par l'établissement (élèves, encadreurs professionnels).
+    Dès qu'une liste existe pour un rôle, l'inscription publique n'est acceptée que pour un
+    matricule de cette liste dont le nom et le prénom correspondent (anti-usurpation).
+    """
+
+    class Role(models.TextChoices):
+        ELEVE = 'eleve', 'Élève'
+        ENCADREUR = 'encadreur', 'Encadreur professionnel'
+
+    matricule = models.CharField(max_length=30, unique=True)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.ELEVE)
+    nom = models.CharField(max_length=100)
+    prenom = models.CharField(max_length=100)
+    classe = models.CharField(max_length=20, blank=True, null=True)
+    date_import = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Matricule officiel"
+        verbose_name_plural = "Matricules officiels"
+        ordering = ['nom', 'prenom']
+
+    def __str__(self):
+        return f"{self.matricule} — {self.prenom} {self.nom}"
