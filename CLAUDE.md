@@ -25,6 +25,7 @@ $PY manage.py test config.tests_securite        # tests transverses de sécurit�
 | JWT / statut du compte / révocation | `utilisateurs/authentication.py`, `utilisateurs/securite.py` (anti brute-force) |
 | Comptes, parents, rattachements, matricules | `utilisateurs/views.py`, `serializers.py`, `matricules.py` |
 | Messagerie / WebSocket | `messagerie/permissions.py` (règle d'accès unique), `consumers.py`, `tickets.py`, `middleware.py` |
+| Centres d'intérêt (profil, inscription, signal IA) | `utilisateurs/models.py` (`CentreInteret`, `Utilisateur.interets`), `services.py` des recommandations (`interets_actifs`), `static/js/interets.js`, tests `config/tests_interets.py` |
 | IA recommandations / prédictions | `recommandations/services.py`, `ml_pipeline.py`, `analytics/ml_pipeline.py` |
 | Config, déploiement | `config/settings.py`, `render.yaml`, `build.sh` |
 | Tests transverses | `config/tests_securite.py` (classe de base `BaseDonnees`) |
