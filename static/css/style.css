@@ -741,7 +741,11 @@ input[type="submit"]:focus-visible {
 
 /* Un contenu large ne doit pas élargir la page (élément flex) */
 .contenu-principal { min-width: 0; }
-.logo-navbar { object-fit: contain; }
+/* Logo : fichier recadré et transparent ; on garde le ratio (jamais "cover", qui couperait le logo). */
+.logo-navbar { height: 40px; width: auto; object-fit: contain; }
+@media (max-width: 575px) { .logo-navbar { height: 34px; } }
+/* Le logo contient du bleu nuit : sur fond sombre il repose sur une pastille claire. */
+[data-theme="dark"] .logo-navbar { background-color: #ffffff; border-radius: 8px; padding: 2px; }
 .navbar-lycee .navbar-brand { white-space: nowrap; font-size: 1.05rem; }
 
 /* Focus clavier visible partout */

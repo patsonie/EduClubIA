@@ -41,7 +41,7 @@
             text-align: center;
             position: relative;
         }
-        .panneau-illustration .logo-principal { max-width: 120px; margin-bottom: 0.5rem; }
+        .panneau-illustration .logo-principal { width: 104px; max-width: 100%; height: auto; object-fit: contain; margin-bottom: 0.5rem; }
         .panneau-illustration h1 { font-size: 2.2rem; font-weight: 800; color: #1e2422; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
         .panneau-illustration h1 .accent { color: #6C5CE7; }
         .slogan { color: #6C5CE7; font-weight: 600; font-size: 1rem; margin-bottom: 0.6rem; }
@@ -112,7 +112,7 @@
 <body>
 <div class="conteneur-principal-auth">
     <div class="panneau-illustration">
-        <img src="{% static 'images/logo.jpeg' %}" alt="Logo" class="logo-principal">
+        <img src="{% static 'images/logo-educlubia.png' %}" alt="Logo EduClubIA" width="400" height="387" class="logo-principal">
         <h1>Édu<span class="accent">Club</span>IA</h1>
         <div class="slogan">Gérer <span class="separateur">•</span> Analyser <span class="separateur">•</span> Prédire <span class="separateur">•</span> Recommander</div>
         <p class="sous-titre-panneau">Plateforme intelligente de gestion des clubs et activités extrascolaires</p>

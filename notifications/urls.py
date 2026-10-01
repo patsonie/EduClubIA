@@ -5,6 +5,7 @@ from .views import NotificationViewSet, PreferenceNotificationView
 router = DefaultRouter()
 router.register(r'', NotificationViewSet, basename='notification')
 
-urlpatterns = router.urls + [
+# « preferences/ » doit précéder le routeur : sinon il est capturé comme un identifiant de notification (404).
+urlpatterns = [
     path('preferences/', PreferenceNotificationView.as_view({'get': 'list', 'put': 'update_preferences'}), name='preferences-notification'),
-]
+] + router.urls

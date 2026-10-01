@@ -45,6 +45,15 @@ class ProfilTest(BaseDonnees):
             self.assertIn('interets', r.data)
         self.assertEqual(r.data['interets'], [])
 
+    def test_preferences_de_notification_accessibles_depuis_le_profil(self):
+        # Régression : « preferences/ » était capturé par le routeur (404), l'onglet ne chargeait rien.
+        self.auth(self.eleve1)
+        r = self.client.get('/api/notifications/preferences/')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        r = self.client.put('/api/notifications/preferences/', {'notifications_email': False}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertFalse(r.data['notifications_email'])
+
     def test_centres_actifs_listes_publiquement(self):
         inactif = CentreInteret.objects.create(nom="Inactif", actif=False)
         r = self.client.get('/api/auth/interets/')
