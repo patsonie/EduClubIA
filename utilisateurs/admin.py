@@ -1,7 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import Utilisateur, JournalActivite, RelationParentEleve
-from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel
+from django.db.models import Count
+from .models import (
+    Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel,
+    CategorieInteret, CentreInteret,
+)
 
 
 class UtilisateurAdmin(UserAdmin):
@@ -15,7 +19,7 @@ class UtilisateurAdmin(UserAdmin):
         (None, {'fields': ('email', 'password')}),
         ('Informations personnelles', {'fields': (
             'nom', 'prenom', 'telephone', 'date_naissance', 'photo',
-            'classe', 'filiere', 'centres_interet', 'moyenne_generale', 'profession',
+            'classe', 'filiere', 'centres_interet', 'interets', 'moyenne_generale', 'profession',
         )}),
         ('Rôle et permissions', {'fields': ('role', 'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Dates importantes', {'fields': ('last_login', 'date_joined')}),
@@ -27,6 +31,7 @@ class UtilisateurAdmin(UserAdmin):
         }),
     )
     readonly_fields = ('date_joined',)
+    filter_horizontal = ('groups', 'user_permissions', 'interets')
 
 
 class RelationParentEleveInline(admin.TabularInline):
@@ -53,6 +58,42 @@ class CodeInvitationAdmin(admin.ModelAdmin):
     list_display = ('code', 'role_cible', 'utilise', 'utilise_par', 'date_creation')
     list_filter = ('role_cible', 'utilise')
     readonly_fields = ('utilise', 'utilise_par', 'date_utilisation')
+
+
+@admin.register(CategorieInteret)
+class CategorieInteretAdmin(admin.ModelAdmin):
+    list_display = ('nom', 'ordre')
+    search_fields = ('nom',)
+
+
+@admin.register(CentreInteret)
+class CentreInteretAdmin(admin.ModelAdmin):
+    list_display = ('nom', 'categorie', 'categorie_club', 'actif', 'nombre_eleves')
+    list_filter = ('categorie', 'categorie_club', 'actif')
+    list_editable = ('actif',)
+    search_fields = ('nom', 'description')
+    readonly_fields = ('date_creation', 'date_modification', 'liste_eleves')
+    actions = ['desactiver', 'activer']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_nb_eleves=Count('eleves'))
+
+    @admin.display(description="Élèves", ordering='_nb_eleves')
+    def nombre_eleves(self, obj):
+        return obj._nb_eleves
+
+    @admin.display(description="Élèves associés")
+    def liste_eleves(self, obj):
+        noms = [e.nom_complet for e in obj.eleves.all()[:50]]
+        return ', '.join(noms) or '—'
+
+    @admin.action(description="Désactiver les centres sélectionnés")
+    def desactiver(self, request, queryset):
+        queryset.update(actif=False)
+
+    @admin.action(description="Activer les centres sélectionnés")
+    def activer(self, request, queryset):
+        queryset.update(actif=True)
 
 
 @admin.register(MatriculeOfficiel)

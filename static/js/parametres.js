@@ -28,7 +28,12 @@ async function chargerProfil() {
         document.getElementById('bloc-preferences-eleve').classList.remove('d-none');
         document.getElementById('champ-classe').value = profil.classe || '';
         document.getElementById('champ-filiere').value = profil.filiere || '';
-        document.getElementById('champ-centres-interet').value = profil.centres_interet || '';
+        const centres = await appelApi('/auth/interets/');
+        afficherPucesInterets(
+            document.getElementById('conteneur-interets'),
+            Array.isArray(centres) ? centres : [],
+            profil.interets,
+        );
     }
 
     const preferences = await appelApi('/notifications/preferences/');
@@ -59,17 +64,26 @@ document.getElementById('formulaire-profil').addEventListener('submit', async (e
     if (!document.getElementById('bloc-preferences-eleve').classList.contains('d-none')) {
         donnees.classe = document.getElementById('champ-classe').value;
         donnees.filiere = document.getElementById('champ-filiere').value;
-        donnees.centres_interet = document.getElementById('champ-centres-interet').value;
+        donnees.interets = lireInteretsSelectionnes(document.getElementById('conteneur-interets'));
     }
+
+    const bouton = e.submitter || e.target.querySelector('button[type="submit"]');
+    bouton.disabled = true;
+    const alerteSucces = document.getElementById('alerte-succes-profil');
+    alerteSucces.classList.add('d-none');
 
     const resultat = await appelApi('/auth/profil/', {
         method: 'PATCH',
         body: JSON.stringify(donnees),
     });
+    bouton.disabled = false;
 
-    if (resultat) {
-        document.getElementById('alerte-succes-profil').classList.remove('d-none');
-        setTimeout(() => document.getElementById('alerte-succes-profil').classList.add('d-none'), 3000);
+    if (resultat && resultat.id) {
+        alerteSucces.classList.remove('d-none');
+        setTimeout(() => alerteSucces.classList.add('d-none'), 3000);
+    } else if (resultat) {
+        const premier = Object.values(resultat)[0];
+        alert(`Enregistrement impossible : ${Array.isArray(premier) ? premier[0] : premier}`);
     }
 });
 

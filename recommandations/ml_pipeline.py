@@ -86,7 +86,7 @@ def valider_modele_content_based():
     top_populaires = list(popularite.index[:TOP_K_VALIDATION]) if len(popularite) else []
 
     eleves = [
-        e for e in Utilisateur.objects.filter(id__in=clubs_par_eleve.keys())
+        e for e in Utilisateur.objects.filter(id__in=clubs_par_eleve.keys()).prefetch_related('interets')
         if construire_texte_profil_eleve(e, inclure_historique=False).strip()
     ]
     if len(eleves) < 5:

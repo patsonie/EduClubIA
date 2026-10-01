@@ -41,6 +41,14 @@
         .bloc-info-statut { border-radius: 12px; }
         .etape-cercle { border-radius: 50%; }
 
+        .section-inscription { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.07); }
+        .titre-section-inscription { display: flex; align-items: center; gap: .6rem; font-weight: 600; margin-bottom: 1rem; }
+        .numero-section { width: 26px; height: 26px; border-radius: 50%; background: #6C5CE7; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .78rem; flex-shrink: 0; }
+        .erreur-champ { color: #dc2626; font-size: .78rem; margin-top: .25rem; }
+        [data-theme="dark"] .section-inscription { border-color: rgba(255,255,255,0.08); }
+        [data-theme="dark"] .erreur-champ { color: #f87171; }
+        @media (max-width: 575px) { .panneau-droit { padding: 1.5rem 1rem; } }
+
         .barre-progression { display: flex; align-items: center; margin-bottom: 2rem; }
         .etape-progression { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
         .etape-cercle { width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #9ca3af; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem; z-index: 2; }
@@ -211,35 +219,13 @@
                 </div>
             </div>
 
-            <div class="barre-progression mt-4" id="barre-progression">
-                <div class="etape-progression active" data-etape="1">
-                    <div class="etape-ligne"></div>
-                    <div class="etape-cercle">1</div>
-                    <div class="etape-libelle">Informations<br>personnelles</div>
-                </div>
-                <div class="etape-progression" data-etape="2">
-                    <div class="etape-ligne"></div>
-                    <div class="etape-cercle">2</div>
-                    <div class="etape-libelle">Profil</div>
-                </div>
-                <div class="etape-progression" data-etape="3">
-                    <div class="etape-ligne"></div>
-                    <div class="etape-cercle">3</div>
-                    <div class="etape-libelle">Sécurité</div>
-                </div>
-                <div class="etape-progression" data-etape="4">
-                    <div class="etape-ligne"></div>
-                    <div class="etape-cercle">4</div>
-                    <div class="etape-libelle">Confirmation</div>
-                </div>
-            </div>
+            <div id="alerte-erreur-inscription" class="alert alert-danger d-none small mt-3" role="alert"></div>
 
-            <div id="alerte-erreur-inscription" class="alert alert-danger d-none small"></div>
+            <form id="formulaire-inscription" class="mt-4" novalidate>
 
-            <form id="formulaire-inscription">
-
-                <!-- ÉTAPE 1 : Informations personnelles -->
-                <div class="etape-contenu" data-etape="1">
+                <!-- SECTION 1 : Informations personnelles -->
+                <div class="section-inscription">
+                    <h6 class="titre-section-inscription"><span class="numero-section">1</span>Informations personnelles</h6>
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-medium">Nom *</label>
@@ -271,13 +257,11 @@
                             </select>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end mt-4">
-                        <button type="button" class="btn btn-primaire-app btn-etape-suivante" data-suivante="2">Suivant <i class="bi bi-arrow-right ms-1"></i></button>
-                    </div>
                 </div>
 
-                <!-- ÉTAPE 2 : Choix du profil + champs dynamiques -->
-                <div class="etape-contenu d-none" data-etape="2">
+                <!-- SECTION 2 : Rôle et informations liées -->
+                <div class="section-inscription">
+                    <h6 class="titre-section-inscription"><span class="numero-section">2</span>Votre profil</h6>
                     <label class="form-label small fw-medium mb-2">Rôle *</label>
                     <div class="row g-2 mb-4">
                         <div class="col-6 col-md-3">
@@ -431,14 +415,20 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between mt-4">
-                        <button type="button" class="btn btn-light btn-etape-precedente" data-precedente="1"><i class="bi bi-arrow-left me-1"></i>Précédent</button>
-                        <button type="button" class="btn btn-primaire-app btn-etape-suivante" data-suivante="3">Suivant <i class="bi bi-arrow-right ms-1"></i></button>
+                </div>
+
+                <!-- SECTION 3 : Centres d'intérêt (élèves) -->
+                <div class="section-inscription d-none" id="section-interets">
+                    <h6 class="titre-section-inscription"><span class="numero-section">3</span>Centres d'intérêt <span class="text-muted fw-normal small">(facultatif)</span></h6>
+                    <p class="text-muted small mb-3">Choisissez ce qui vous intéresse : nous vous recommanderons des clubs adaptés. Vous pourrez modifier ces choix plus tard dans votre profil.</p>
+                    <div id="conteneur-interets" role="group" aria-label="Centres d'intérêt">
+                        <div class="text-muted small">Chargement…</div>
                     </div>
                 </div>
 
-                <!-- ÉTAPE 3 : Sécurité -->
-                <div class="etape-contenu d-none" data-etape="3">
+                <!-- SECTION 4 : Sécurité -->
+                <div class="section-inscription">
+                    <h6 class="titre-section-inscription"><span class="numero-section" id="numero-section-securite">3</span>Sécurité</h6>
                     <div class="mb-3">
                         <label class="form-label small fw-medium">Mot de passe *</label>
                         <input type="password" class="form-control" name="password" id="champ-password" required>
@@ -463,35 +453,19 @@
                         <label class="form-check-label small" for="check-confidentialite">J'accepte la Politique de confidentialité *</label>
                     </div>
 
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-light btn-etape-precedente" data-precedente="2"><i class="bi bi-arrow-left me-1"></i>Précédent</button>
-                        <button type="button" class="btn btn-primaire-app" id="btn-vers-confirmation">Suivant <i class="bi bi-arrow-right ms-1"></i></button>
-                    </div>
                 </div>
 
-                <!-- ÉTAPE 4 : Confirmation -->
-                <div class="etape-contenu d-none" data-etape="4">
-                    <h6 class="fw-semibold mb-1">Vérifiez vos informations</h6>
-                    <p class="text-muted small mb-3">Veuillez vérifier que toutes les informations sont correctes avant de créer votre compte.</p>
-
-                    <div class="carte p-3 mb-3" id="recapitulatif-inscription"></div>
-
-                    <div class="alert alert-info small">
-                        <i class="bi bi-info-circle me-1"></i>
-                        En créant un compte, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité.
-                    </div>
-
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-light btn-etape-precedente" data-precedente="3"><i class="bi bi-arrow-left me-1"></i>Précédent</button>
-                        <button type="submit" class="btn btn-primaire-app">Créer mon compte <i class="bi bi-check-lg ms-1"></i></button>
-                    </div>
-                </div>
+                <button type="submit" class="btn btn-primaire-app w-100 py-2" id="btn-creer-compte">
+                    <span class="texte-bouton">Créer mon compte <i class="bi bi-check-lg ms-1"></i></span>
+                    <span class="texte-chargement d-none"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Création en cours…</span>
+                </button>
             </form>
         </div>
     </div>
 </div>
 
-<script src="{% static 'js/inscription.js' %}?v=2"></script>
+<script src="{% static 'js/interets.js' %}"></script>
+<script src="{% static 'js/inscription.js' %}?v=3"></script>
     <script src="{% static 'js/accessibilite.js' %}"></script>
 </body>
 </html>

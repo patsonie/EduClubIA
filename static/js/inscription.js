@@ -1,112 +1,98 @@
 const API_BASE = window.location.origin + '/api';
-let etapeActuelle = 1;
 let roleSelectionne = null;
 let typeEncadreurSelectionne = null;
+
+const formulaire = document.getElementById('formulaire-inscription');
 const zoneDepotProviseur = document.getElementById('zone-depot-proviseur');
 const champFichierProviseur = document.getElementById('champ-justificatif-proviseur');
 const texteDepotProviseur = document.getElementById('texte-depot-proviseur');
+const conteneurInterets = document.getElementById('conteneur-interets');
+const boutonCreer = document.getElementById('btn-creer-compte');
 
-function allerAEtape(numero) {
-    document.querySelectorAll('.etape-contenu').forEach(e => e.classList.add('d-none'));
-    document.querySelector(`.etape-contenu[data-etape="${numero}"]`).classList.remove('d-none');
-
-    document.querySelectorAll('.etape-progression').forEach(e => {
-        const n = parseInt(e.dataset.etape);
-        e.classList.remove('active', 'complete');
-        if (n < numero) e.classList.add('complete');
-        if (n === numero) e.classList.add('active');
-    });
-
-    etapeActuelle = numero;
-    if (numero === 4) construireRecapitulatif();
-    window.scrollTo(0, 0);
-}
-
-document.querySelectorAll('.btn-etape-suivante').forEach(bouton => {
-    bouton.addEventListener('click', () => {
-        if (!validerEtape(etapeActuelle)) return;
-        allerAEtape(parseInt(bouton.dataset.suivante));
-    });
-});
-document.querySelectorAll('.btn-etape-precedente').forEach(bouton => {
-    bouton.addEventListener('click', () => allerAEtape(parseInt(bouton.dataset.precedente)));
-});
+// ---------- Messages d'erreur ----------
 
 function afficherErreur(message) {
     const alerte = document.getElementById('alerte-erreur-inscription');
     alerte.textContent = message;
     alerte.classList.remove('d-none');
-    window.scrollTo(0, 0);
-}
-function masquerErreur() {
-    document.getElementById('alerte-erreur-inscription').classList.add('d-none');
+    alerte.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function validerEtape(numero) {
-    masquerErreur();
-    if (numero === 1) {
-        const champs = document.querySelectorAll('.etape-contenu[data-etape="1"] [required]');
-        for (const champ of champs) {
-            if (!champ.value) { afficherErreur("Veuillez remplir tous les champs obligatoires."); return false; }
-        }
-        return true;
-    }
-    if (numero === 2) {
-        if (!roleSelectionne) { afficherErreur("Veuillez sélectionner un rôle."); return false; }
-        if (roleSelectionne === 'encadreur' && !typeEncadreurSelectionne) {
-            afficherErreur("Veuillez préciser le type d'encadreur."); return false;
-        }
-        if (roleSelectionne === 'proviseur' && (!champFichierProviseur || champFichierProviseur.files.length === 0)) {
-            afficherErreur("L'acte de nomination est obligatoire pour ce rôle.");
-            return false;
-        }
-        return true;
-    }
+function effacerErreurs() {
+    document.getElementById('alerte-erreur-inscription').classList.add('d-none');
+    formulaire.querySelectorAll('.erreur-champ').forEach(e => e.remove());
+    formulaire.querySelectorAll('.is-invalid').forEach(e => e.classList.remove('is-invalid'));
+}
+
+/** Affiche un message sous le champ concerné ; retourne false si le champ est introuvable. */
+function erreurChamp(champ, message) {
+    if (!champ) return false;
+    champ.classList.add('is-invalid');
+    const cible = champ.closest('.zone-depot-fichier') || champ;
+    const p = document.createElement('div');
+    p.className = 'erreur-champ';
+    p.textContent = message;
+    cible.insertAdjacentElement('afterend', p);
     return true;
 }
 
-// --- Sélection du rôle ---
+// ---------- Champs : seuls ceux du rôle choisi sont actifs (évite les doublons de "matricule") ----------
+
+function activerChampsDuRole() {
+    document.querySelectorAll('.champs-role').forEach(bloc => {
+        const actif = bloc.id === `champs-${roleSelectionne}`;
+        bloc.classList.toggle('d-none', !actif);
+        bloc.querySelectorAll('input, select').forEach(c => { c.disabled = !actif; });
+    });
+    const estEleve = roleSelectionne === 'eleve';
+    document.getElementById('section-interets').classList.toggle('d-none', !estEleve);
+    document.getElementById('numero-section-securite').textContent = estEleve ? '4' : '3';
+}
+activerChampsDuRole();
+
+function champ(nom) {
+    return formulaire.querySelector(`[name="${nom}"]:not(:disabled)`);
+}
+
+function valeur(nom) {
+    const c = champ(nom);
+    return c ? c.value.trim() : '';
+}
+
+// ---------- Sélection du rôle ----------
+
 document.querySelectorAll('.carte-role[data-role]').forEach(carte => {
     carte.addEventListener('click', () => {
         document.querySelectorAll('.carte-role[data-role]').forEach(c => c.classList.remove('selectionnee'));
         carte.classList.add('selectionnee');
         roleSelectionne = carte.dataset.role;
-
-        document.querySelectorAll('.champs-role').forEach(c => c.classList.add('d-none'));
-        document.getElementById(`champs-${roleSelectionne}`)?.classList.remove('d-none');
+        activerChampsDuRole();
     });
 });
 
-// --- Sélection du type d'encadreur ---
+// ---------- Type d'encadreur ----------
+
 document.querySelectorAll('.carte-role[data-type-encadreur]').forEach(carte => {
     carte.addEventListener('click', () => {
         document.querySelectorAll('.carte-role[data-type-encadreur]').forEach(c => c.classList.remove('selectionnee'));
         carte.classList.add('selectionnee');
         typeEncadreurSelectionne = carte.dataset.typeEncadreur;
 
-        const ligneMatricule = document.getElementById('ligne-matricule-encadreur');
-        const ligneJustificatif = document.getElementById('ligne-justificatif-encadreur');
         const messageStatut = document.getElementById('message-statut-encadreur');
-
-        if (typeEncadreurSelectionne === 'professionnel') {
-            ligneMatricule.querySelector('input').required = true;
-            ligneJustificatif.classList.remove('d-none');
-            messageStatut.innerHTML = '<i class="bi bi-info-circle me-1"></i>Votre demande sera examinée par l\'administration après vérification du justificatif.';
-        } else {
-            ligneMatricule.querySelector('input').required = false;
-            ligneJustificatif.classList.remove('d-none');
-            messageStatut.innerHTML = '<i class="bi bi-info-circle me-1"></i>Votre inscription a été enregistrée. Comme encadreur vacataire, votre compte doit être validé par le responsable pédagogique avant son activation (justificatif facultatif).';
-        }
+        messageStatut.innerHTML = typeEncadreurSelectionne === 'professionnel'
+            ? '<i class="bi bi-info-circle me-1"></i>Votre demande sera examinée par l\'administration après vérification du justificatif.'
+            : '<i class="bi bi-info-circle me-1"></i>Votre inscription a été enregistrée. Comme encadreur vacataire, votre compte doit être validé par le responsable pédagogique avant son activation (justificatif facultatif).';
     });
 });
 
-// --- Indicateurs de force du mot de passe ---
+// ---------- Indicateurs de force du mot de passe ----------
+
 function verifierMotDePasse() {
-    const valeur = document.getElementById('champ-password').value;
+    const valeurMdp = document.getElementById('champ-password').value;
     const criteres = {
-        'ind-longueur': valeur.length >= 8,
-        'ind-majuscule': /[A-Z]/.test(valeur),
-        'ind-chiffre': /[0-9]/.test(valeur),
+        'ind-longueur': valeurMdp.length >= 8,
+        'ind-majuscule': /[A-Z]/.test(valeurMdp),
+        'ind-chiffre': /[0-9]/.test(valeurMdp),
     };
     Object.entries(criteres).forEach(([id, valide]) => {
         const el = document.getElementById(id);
@@ -118,127 +104,154 @@ function verifierMotDePasse() {
 }
 document.getElementById('champ-password').addEventListener('input', verifierMotDePasse);
 
-document.getElementById('btn-vers-confirmation').addEventListener('click', () => {
-    masquerErreur();
-    const password = document.getElementById('champ-password').value;
-    const password2 = document.getElementById('champ-password2').value;
+// ---------- Validation côté client (le serveur revalide tout) ----------
 
-    if (!verifierMotDePasse()) { afficherErreur("Le mot de passe ne respecte pas tous les critères de sécurité."); return; }
-    if (password !== password2) { afficherErreur("Les mots de passe ne correspondent pas."); return; }
-    if (!document.getElementById('check-conditions').checked || !document.getElementById('check-confidentialite').checked) {
-        afficherErreur("Veuillez accepter les conditions d'utilisation et la politique de confidentialité.");
-        return;
-    }
-    allerAEtape(4);
-});
-
-// --- Récapitulatif ---
-const LIBELLES_ROLES = { eleve: 'Élève', parent: "Parent d'élève", encadreur: 'Encadreur', proviseur: 'Responsable pédagogique' };
-
-function construireRecapitulatif() {
-    const form = document.getElementById('formulaire-inscription');
-    const data = new FormData(form);
-    const conteneur = document.getElementById('recapitulatif-inscription');
-
-    let lignes = [
-        ['Nom complet', `${data.get('prenom')} ${data.get('nom')}`],
-        ['Email', data.get('email')],
-        ['Téléphone', data.get('telephone')],
-        ['Rôle', LIBELLES_ROLES[roleSelectionne] || '-'],
-    ];
-
-    if (roleSelectionne === 'encadreur') {
-        lignes.push(['Type', typeEncadreurSelectionne === 'professionnel' ? 'Professionnel' : 'Vacataire']);
-        lignes.push(['Domaine', data.get('domaine_competence') || '-']);
-        lignes.push(['Justificatif', data.get('justificatif') && data.get('justificatif').name ? data.get('justificatif').name : 'Non fourni']);
-        lignes.push(['Statut', typeEncadreurSelectionne === 'professionnel'
-            ? 'En attente de validation par l\'administration'
-            : 'En attente de validation par le responsable pédagogique']);
-    } else if (roleSelectionne === 'eleve') {
-        lignes.push(['Matricule', data.get('matricule') || '-']);
-        lignes.push(['Classe', data.get('classe') || '-']);
-        lignes.push(['Statut', 'En attente de validation']);
-    } else if (roleSelectionne === 'proviseur') {
-        lignes.push(['Statut', 'En attente de validation par un administrateur']);
-    } else if (roleSelectionne === 'parent') {
-        lignes.push(['Lien avec l\'élève', data.get('type_lien_eleve') || '-']);
-        lignes.push(['Statut', 'Actif — vous pourrez associer votre enfant ensuite']);
-    }
-
-    conteneur.innerHTML = lignes.map(([libelle, valeur]) => `
-        <div class="ligne-recap">
-            <span class="libelle-recap">${libelle}</span>
-            <span class="valeur-recap">${valeur}</span>
-        </div>`).join('');
-}
-
-// --- Soumission finale ---
-document.getElementById('formulaire-inscription').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    masquerErreur();
-
-    const form = e.target;
-    const formDataOriginal = new FormData(form);
-
-    const donnees = {
-        nom: formDataOriginal.get('nom'), prenom: formDataOriginal.get('prenom'),
-        email: formDataOriginal.get('email'), telephone: formDataOriginal.get('telephone'),
-        date_naissance: formDataOriginal.get('date_naissance'), genre: formDataOriginal.get('genre'),
-        role: roleSelectionne, password: formDataOriginal.get('password'), password2: formDataOriginal.get('password2'),
+function validerFormulaire() {
+    const erreurs = []; // [champ, message]
+    const requis = (nom, message = 'Ce champ est obligatoire.') => {
+        if (!valeur(nom)) erreurs.push([champ(nom), message]);
     };
 
-    let fichierJustificatif = null;
+    ['nom', 'prenom', 'email', 'telephone', 'date_naissance', 'genre'].forEach(n => requis(n));
 
-    if (roleSelectionne === 'eleve') {
-        donnees.matricule = formDataOriginal.get('matricule');
-        donnees.classe = formDataOriginal.get('classe');
+    if (!roleSelectionne) {
+        erreurs.push([document.querySelector('.carte-role[data-role]'), 'Veuillez sélectionner un rôle.']);
+    } else if (roleSelectionne === 'eleve') {
+        requis('matricule', 'Le matricule scolaire est requis.');
+        requis('classe');
     } else if (roleSelectionne === 'parent') {
-        donnees.type_lien_eleve = formDataOriginal.get('type_lien_eleve');
-        donnees.matricule_enfant = formDataOriginal.get('matricule_enfant');
+        requis('type_lien_eleve', 'Veuillez préciser votre lien avec l\'élève.');
     } else if (roleSelectionne === 'encadreur') {
-        donnees.type_encadreur = typeEncadreurSelectionne;
-        donnees.matricule = formDataOriginal.get('matricule_encadreur');
-        donnees.fonction = formDataOriginal.get('fonction');
-        donnees.domaine_competence = formDataOriginal.get('domaine_competence');
-        donnees.club_souhaite = formDataOriginal.get('club_souhaite');
-        fichierJustificatif = formDataOriginal.get('justificatif');
+        if (!typeEncadreurSelectionne) {
+            erreurs.push([document.querySelector('.carte-role[data-type-encadreur]'), 'Veuillez préciser le type d\'encadreur.']);
+        } else if (typeEncadreurSelectionne === 'professionnel') {
+            requis('matricule_encadreur', 'Le matricule professionnel est requis.');
+        }
+        requis('fonction');
+        requis('domaine_competence');
     } else if (roleSelectionne === 'proviseur') {
-        donnees.matricule = formDataOriginal.get('matricule');
-        donnees.fonction = formDataOriginal.get('fonction');
-        donnees.service_responsabilite = formDataOriginal.get('service_responsabilite');
-        donnees.etablissement = formDataOriginal.get('etablissement');
-        fichierJustificatif = champFichierProviseur.files[0];
+        requis('matricule');
+        requis('fonction');
+        requis('etablissement', 'Le nom de l\'établissement est obligatoire.');
+        if (!champFichierProviseur.files.length) {
+            erreurs.push([champFichierProviseur, 'L\'acte de nomination est obligatoire pour ce rôle.']);
+        }
     }
 
+    if (!verifierMotDePasse()) {
+        erreurs.push([champ('password'), 'Le mot de passe ne respecte pas tous les critères de sécurité.']);
+    } else if (valeur('password') !== valeur('password2')) {
+        erreurs.push([champ('password2'), 'Les mots de passe ne correspondent pas.']);
+    }
+    ['check-conditions', 'check-confidentialite'].forEach(id => {
+        const c = document.getElementById(id);
+        if (!c.checked) erreurs.push([c, 'Cette acceptation est obligatoire.']);
+    });
+
+    return erreurs;
+}
+
+// ---------- Soumission ----------
+
+function chargement(actif) {
+    boutonCreer.disabled = actif;
+    boutonCreer.querySelector('.texte-bouton').classList.toggle('d-none', actif);
+    boutonCreer.querySelector('.texte-chargement').classList.toggle('d-none', !actif);
+}
+
+function construireDonnees() {
+    const donnees = {
+        nom: valeur('nom'), prenom: valeur('prenom'), email: valeur('email'),
+        telephone: valeur('telephone'), date_naissance: valeur('date_naissance'), genre: valeur('genre'),
+        role: roleSelectionne, password: valeur('password'), password2: valeur('password2'),
+    };
+    let fichier = null;
+
+    if (roleSelectionne === 'eleve') {
+        donnees.matricule = valeur('matricule');
+        donnees.classe = valeur('classe');
+        donnees.interets = lireInteretsSelectionnes(conteneurInterets);
+    } else if (roleSelectionne === 'parent') {
+        donnees.type_lien_eleve = valeur('type_lien_eleve');
+        donnees.matricule_enfant = valeur('matricule_enfant');
+    } else if (roleSelectionne === 'encadreur') {
+        donnees.type_encadreur = typeEncadreurSelectionne;
+        donnees.matricule = valeur('matricule_encadreur');
+        donnees.fonction = valeur('fonction');
+        donnees.domaine_competence = valeur('domaine_competence');
+        donnees.club_souhaite = valeur('club_souhaite');
+        const f = champ('justificatif');
+        fichier = f && f.files[0] ? f.files[0] : null;
+    } else if (roleSelectionne === 'proviseur') {
+        donnees.matricule = valeur('matricule');
+        donnees.fonction = valeur('fonction');
+        donnees.service_responsabilite = valeur('service_responsabilite');
+        donnees.etablissement = valeur('etablissement');
+        fichier = champFichierProviseur.files[0];
+    }
+    return { donnees, fichier };
+}
+
+async function envoyer(donnees, fichier) {
+    if (fichier && fichier.size > 0) {
+        const corps = new FormData();
+        Object.entries(donnees).forEach(([cle, v]) => {
+            if (Array.isArray(v)) v.forEach(x => corps.append(cle, x));
+            else if (v !== null && v !== undefined) corps.append(cle, v);
+        });
+        corps.append('justificatif', fichier);
+        // Pas de Content-Type manuel : le navigateur ajoute la boundary multipart.
+        return fetch(`${API_BASE}/auth/register/`, { method: 'POST', body: corps });
+    }
+    return fetch(`${API_BASE}/auth/register/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(donnees),
+    });
+}
+
+/** Rattache les erreurs renvoyées par l'API aux champs ; le reste va dans l'alerte générale. */
+function afficherErreursServeur(resultat) {
+    const generales = [];
+    Object.entries(resultat || {}).forEach(([nom, messages]) => {
+        const texte = Array.isArray(messages) ? messages.join(' ') : String(messages);
+        const nomChamp = nom === 'matricule' && roleSelectionne === 'encadreur' ? 'matricule_encadreur'
+            : nom === 'justificatif' && roleSelectionne === 'proviseur' ? 'justificatif_proviseur' : nom;
+        const cible = formulaire.querySelector(`[name="${nomChamp}"]:not(:disabled)`);
+        if (!erreurChamp(cible, texte)) generales.push(texte);
+    });
+    if (generales.length) afficherErreur(generales.join(' '));
+    const premiere = formulaire.querySelector('.is-invalid');
+    if (premiere) premiere.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+formulaire.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (boutonCreer.disabled) return; // anti double-clic
+    effacerErreurs();
+
+    const erreurs = validerFormulaire();
+    if (erreurs.length) {
+        erreurs.forEach(([c, message]) => erreurChamp(c, message));
+        const premiere = formulaire.querySelector('.is-invalid');
+        if (premiere) premiere.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        afficherErreur('Veuillez corriger les champs signalés.');
+        return;
+    }
+
+    const { donnees, fichier } = construireDonnees();
+    chargement(true);
     try {
-        let reponse;
-
-        if (fichierJustificatif && fichierJustificatif.size > 0) {
-            // Envoi en multipart/form-data pour transporter le fichier
-            const formDataEnvoi = new FormData();
-            Object.entries(donnees).forEach(([cle, valeur]) => {
-                if (valeur !== null && valeur !== undefined) formDataEnvoi.append(cle, valeur);
-            });
-            formDataEnvoi.append('justificatif', fichierJustificatif);
-
-            reponse = await fetch(`${API_BASE}/auth/register/`, {
-                method: 'POST',
-                body: formDataEnvoi, // Pas de Content-Type manuel : le navigateur le définit avec la boundary correcte
-            });
-        } else {
-            reponse = await fetch(`${API_BASE}/auth/register/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(donnees),
-            });
-        }
-
-        const resultat = await reponse.json();
+        const reponse = await envoyer(donnees, fichier);
+        let resultat = null;
+        try { resultat = await reponse.json(); } catch (_) { /* corps non JSON */ }
 
         if (!reponse.ok) {
-            const premierChamp = Object.keys(resultat)[0];
-            const message = Array.isArray(resultat[premierChamp]) ? resultat[premierChamp][0] : resultat[premierChamp];
-            afficherErreur(message || "Une erreur est survenue lors de l'inscription.");
+            if (reponse.status >= 500 || !resultat) {
+                afficherErreur("Une erreur serveur est survenue. Vos informations sont conservées, réessayez dans un instant.");
+            } else {
+                afficherErreursServeur(resultat);
+            }
             return;
         }
 
@@ -253,11 +266,27 @@ document.getElementById('formulaire-inscription').addEventListener('submit', asy
             window.location.href = '/connexion/';
         }
     } catch (err) {
-        afficherErreur("Impossible de contacter le serveur.");
+        afficherErreur("Impossible de contacter le serveur. Vos informations sont conservées.");
+    } finally {
+        chargement(false);
     }
 });
 
-// --- Zone de dépôt du justificatif pour le responsable pédagogique ---
+// ---------- Centres d'intérêt ----------
+
+async function chargerCentresInteret() {
+    try {
+        const reponse = await fetch(`${API_BASE}/auth/interets/`);
+        const centres = reponse.ok ? await reponse.json() : [];
+        afficherPucesInterets(conteneurInterets, Array.isArray(centres) ? centres : []);
+    } catch (_) {
+        conteneurInterets.innerHTML = '<p class="text-muted small mb-0">Centres d\'intérêt indisponibles : vous pourrez les choisir depuis votre profil.</p>';
+    }
+}
+chargerCentresInteret();
+
+// ---------- Zone de dépôt du justificatif pour le responsable pédagogique ----------
+
 if (zoneDepotProviseur) {
     zoneDepotProviseur.addEventListener('click', () => champFichierProviseur.click());
 

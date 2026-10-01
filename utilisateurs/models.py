@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
+from clubs.models import Club
 from .managers import UtilisateurManager
 from django.db.models import Q
 from .validators import valider_extension_justificatif, valider_extension_photo, valider_taille_fichier
@@ -39,6 +40,10 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     moyenne_generale = models.DecimalField(
         max_digits=4, decimal_places=2, blank=True, null=True,
         help_text="Moyenne générale sur 20"
+    )
+    interets = models.ManyToManyField(
+        'CentreInteret', blank=True, related_name='eleves',
+        help_text="Centres d'intérêt choisis par l'élève (utilisés par les recommandations IA)"
     )
     profession = models.CharField(max_length=100, blank=True, null=True)
     photo = models.ImageField(
@@ -156,6 +161,47 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
         ).values_list('parent_id', flat=True)
         return Utilisateur.objects.filter(id__in=parents_ids)
     
+
+class CategorieInteret(models.Model):
+    """Regroupement de centres d'intérêt (Sport, Informatique et numérique, ...), géré par l'administration."""
+    nom = models.CharField(max_length=100, unique=True)
+    ordre = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Catégorie de centres d'intérêt"
+        verbose_name_plural = "Catégories de centres d'intérêt"
+        ordering = ['ordre', 'nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class CentreInteret(models.Model):
+    """
+    Centre d'intérêt qu'un élève peut choisir. `categorie_club` relie l'intérêt à une catégorie
+    de club (signal utilisé par le moteur de recommandation).
+    """
+    nom = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, blank=True)
+    categorie = models.ForeignKey(
+        CategorieInteret, on_delete=models.SET_NULL, null=True, blank=True, related_name='centres'
+    )
+    categorie_club = models.CharField(
+        max_length=20, blank=True, choices=Club.Categorie.choices,
+        help_text="Catégorie de club correspondante (facultatif, améliore les recommandations)",
+    )
+    actif = models.BooleanField(default=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Centre d'intérêt"
+        verbose_name_plural = "Centres d'intérêt"
+        ordering = ['categorie__ordre', 'nom']
+
+    def __str__(self):
+        return self.nom
+
 
 class JournalActivite(models.Model):
     """

@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel
+from django.db import transaction
+from .models import (
+    Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel, CentreInteret,
+)
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
@@ -9,6 +12,22 @@ from .securite import verifier_non_bloque, enregistrer_echec, reinitialiser
 from .matricules import trouver_entree_officielle
 from django.utils import timezone
 from django.contrib.auth.password_validation import validate_password
+
+
+class CentreInteretSerializer(serializers.ModelSerializer):
+    categorie = serializers.CharField(source='categorie.nom', default='Autres', read_only=True)
+
+    class Meta:
+        model = CentreInteret
+        fields = ['id', 'nom', 'description', 'categorie']
+        read_only_fields = fields
+
+
+def champ_interets():
+    """Liste d'identifiants de centres d'intérêt actifs (champ facultatif)."""
+    return serializers.PrimaryKeyRelatedField(
+        many=True, required=False, queryset=CentreInteret.objects.filter(actif=True),
+    )
 
 
 class InscriptionSerializer(serializers.ModelSerializer):
@@ -21,6 +40,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password2 = serializers.CharField(write_only=True, min_length=8)
     matricule_enfant = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    interets = champ_interets()
 
     class Meta:
         model = Utilisateur
@@ -28,7 +48,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
             'id', 'email', 'nom', 'prenom', 'role', 'telephone', 'date_naissance', 'genre',
             'password', 'password2',
             # Élève
-            'matricule', 'classe', 'filiere', 'centres_interet',
+            'matricule', 'classe', 'filiere', 'centres_interet', 'interets',
             # Parent
             'type_lien_eleve', 'matricule_enfant',
             # Encadreur
@@ -137,6 +157,7 @@ class InscriptionSerializer(serializers.ModelSerializer):
         validated_data.pop('password2')
         password = validated_data.pop('password')
         matricule_enfant = validated_data.pop('matricule_enfant', None)
+        interets = validated_data.pop('interets', [])
 
         role = validated_data.get('role')
 
@@ -152,19 +173,24 @@ class InscriptionSerializer(serializers.ModelSerializer):
             statut = Utilisateur.StatutValidation.VALIDE
 
         validated_data['statut_validation'] = statut
-        utilisateur = Utilisateur.objects.create_user(password=password, **validated_data)
 
-        if role == Utilisateur.Role.PARENT and matricule_enfant:
-            enfant = Utilisateur.objects.filter(
-                matricule=matricule_enfant, role=Utilisateur.Role.ELEVE
-            ).first()
-            if enfant:
-                # Simple demande de rattachement : un gestionnaire doit la valider.
-                # Le matricule seul ne prouve pas la filiation.
-                RelationParentEleve.objects.get_or_create(
-                    parent=utilisateur, enfant=enfant,
-                    defaults={'statut': RelationParentEleve.Statut.EN_ATTENTE},
-                )
+        # Compte, intérêts et demande de rattachement sont créés ensemble ou pas du tout.
+        with transaction.atomic():
+            utilisateur = Utilisateur.objects.create_user(password=password, **validated_data)
+            if role == Utilisateur.Role.ELEVE and interets:
+                utilisateur.interets.set(interets)
+
+            if role == Utilisateur.Role.PARENT and matricule_enfant:
+                enfant = Utilisateur.objects.filter(
+                    matricule=matricule_enfant, role=Utilisateur.Role.ELEVE
+                ).first()
+                if enfant:
+                    # Simple demande de rattachement : un gestionnaire doit la valider.
+                    # Le matricule seul ne prouve pas la filiation.
+                    RelationParentEleve.objects.get_or_create(
+                        parent=utilisateur, enfant=enfant,
+                        defaults={'statut': RelationParentEleve.Statut.EN_ATTENTE},
+                    )
 
         return utilisateur
 
@@ -174,14 +200,21 @@ class UtilisateurSerializer(serializers.ModelSerializer):
 
     nom_complet = serializers.ReadOnlyField()
     nombre_enfants = serializers.SerializerMethodField()
+    interets = champ_interets()
+    interets_details = CentreInteretSerializer(source='interets', many=True, read_only=True)
 
     class Meta:
         model = Utilisateur
         fields = ['id', 'email', 'nom', 'prenom', 'nom_complet', 'role',
                    'telephone', 'date_naissance', 'photo', 'classe', 'filiere',
-                   'centres_interet', 'moyenne_generale', 'profession',
+                   'centres_interet', 'interets', 'interets_details', 'moyenne_generale', 'profession',
                    'nombre_enfants', 'is_active', 'date_joined']
         read_only_fields = ['id', 'email', 'role', 'is_active', 'date_joined']
+
+    def validate_interets(self, value):
+        if self.instance is not None and self.instance.role != Utilisateur.Role.ELEVE and value:
+            raise serializers.ValidationError("Seuls les élèves peuvent renseigner des centres d'intérêt.")
+        return value
 
     def get_nombre_enfants(self, obj):
         if obj.role == Utilisateur.Role.PARENT:

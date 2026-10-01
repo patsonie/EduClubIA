@@ -9,7 +9,7 @@ from .views import (
     TelechargerJustificatifView, DemandeReinitialisationMotDePasseView,
     ConfirmerReinitialisationMotDePasseView, EnvoyerCodeValidationView,
     RegenererCodeValidationView, ValiderCodeCompteView,  RenvoyerCodeExpireView,
-    MatriculeOfficielViewSet,
+    MatriculeOfficielViewSet, CentresInteretView,
 )
 
 router = DefaultRouter()
@@ -24,6 +24,7 @@ urlpatterns = [
     path('logout/', DeconnexionView.as_view(), name='deconnexion'),
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profil/', ProfilView.as_view(), name='profil'),
+    path('interets/', CentresInteretView.as_view(), name='centres_interet'),
     path('changer-mot-de-passe/', ChangementMotDePasseView.as_view(), name='changer_mot_de_passe'),
     path('mes-enfants/', MesEnfantsView.as_view(), name='mes_enfants'),
     path('dashboard-parent/', TableauDeBordParentView.as_view(), name='dashboard_parent'),

@@ -28,7 +28,7 @@
             <h6 class="fw-semibold mb-3">Mon profil</h6>
             <form id="formulaire-profil">
                 <div class="text-center mb-4">
-                    <img id="apercu-photo" src="{% static 'images/avatar-defaut.png' %}" class="rounded-circle mb-2" width="90" height="90" style="object-fit: cover;">
+                    <img id="apercu-photo" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90'%3E%3Crect width='90' height='90' fill='%23ece9fb'/%3E%3Ccircle cx='45' cy='35' r='16' fill='%23a29bfe'/%3E%3Cpath d='M14 90c2-20 15-30 31-30s29 10 31 30z' fill='%23a29bfe'/%3E%3C/svg%3E" alt="Photo de profil" class="rounded-circle mb-2" width="90" height="90" style="object-fit: cover;">
                     <div>
                         <label class="btn btn-sm btn-light" for="champ-photo">Changer la photo</label>
                         <input type="file" id="champ-photo" name="photo" accept="image/*" class="d-none">
@@ -69,9 +69,11 @@
                                 <input type="text" class="form-control" name="filiere" id="champ-filiere" placeholder="Ex: Scientifique, Littéraire">
                             </div>
                             <div class="col-12">
-                                <label class="form-label small fw-medium">Centres d'intérêt</label>
-                                <input type="text" class="form-control" name="centres_interet" id="champ-centres-interet" placeholder="Ex: informatique, robotique, lecture, théâtre">
-                                <div class="form-text">Séparez vos centres d'intérêt par des virgules — ils sont utilisés pour vous recommander des clubs adaptés.</div>
+                                <label class="form-label small fw-medium" id="libelle-interets">Mes centres d'intérêt</label>
+                                <div id="conteneur-interets" role="group" aria-labelledby="libelle-interets">
+                                    <div class="text-muted small">Chargement…</div>
+                                </div>
+                                <div class="form-text">Choisissez-en autant que vous voulez : ils servent à vous recommander des clubs adaptés.</div>
                             </div>
                         </div>
                     </div>
@@ -122,5 +124,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/interets.js' %}"></script>
 <script src="{% static 'js/parametres.js' %}"></script>
 {% endblock %}

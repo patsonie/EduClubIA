@@ -51,12 +51,38 @@ def charger_modele(chemin):
     return objet
 
 
+def interets_actifs(eleve):
+    """Centres d'intérêt actifs de l'élève (liste vide s'il n'en a pas choisi)."""
+    return [i for i in eleve.interets.all() if i.actif]
+
+
+def interets_correspondants(eleve, club):
+    """
+    Noms des centres d'intérêt de l'élève réellement liés à ce club : même catégorie de club,
+    ou mot du nom de l'intérêt présent dans le texte du club.
+    """
+    mots_club = set(analyser_texte(construire_texte_profil_club(club)))
+    noms = []
+    for interet in interets_actifs(eleve):
+        if (interet.categorie_club and interet.categorie_club == club.categorie) \
+                or mots_club & set(analyser_texte(interet.nom)):
+            noms.append(interet.nom)
+    return noms
+
+
 def construire_texte_profil_eleve(eleve, inclure_historique=True):
     """
     Texte représentant le profil de l'élève : centres d'intérêt, filière et
     (optionnellement) catégories des clubs déjà rejoints.
     """
     elements = []
+
+    # Centres d'intérêt choisis (signal principal) : leur nom, et la catégorie de club associée,
+    # présente dans le texte des clubs. Le texte libre historique reste pris en compte.
+    for interet in interets_actifs(eleve):
+        elements.append(interet.nom)
+        if interet.categorie_club:
+            elements.append(interet.categorie_club)
 
     if eleve.centres_interet:
         elements.append(eleve.centres_interet)
@@ -99,7 +125,13 @@ def mots_communs_profil_club(texte_eleve, texte_club):
 
 
 def generer_explication(eleve, club, mots_communs):
-    """Génère une explication lisible à partir des mots-clés communs détectés."""
+    """Génère une explication lisible à partir des intérêts et mots-clés réellement communs."""
+    interets = interets_correspondants(eleve, club)
+    if interets:
+        return (
+            f"Le club {club.nom} vous est recommandé car il correspond à vos centres d'intérêt : "
+            f"{', '.join(interets[:3])}."
+        )
     if not mots_communs:
         return f"Le club {club.nom} pourrait vous intéresser selon votre profil général."
 

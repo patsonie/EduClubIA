@@ -15,7 +15,7 @@ from django.conf import settings
 import os
 import secrets
 
-from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel
+from .models import Utilisateur, JournalActivite, RelationParentEleve, CodeInvitation, MatriculeOfficiel, CentreInteret
 from .matricules import importer_csv
 from rest_framework.parsers import MultiPartParser
 from .serializers import (
@@ -25,7 +25,7 @@ from .serializers import (
     CompteEnAttenteSerializer, CodeInvitationSerializer,
     UtilisateurAdminSerializer,
     DemandeReinitialisationSerializer, ConfirmationReinitialisationSerializer,
-    ValidationCodeSerializer, MatriculeOfficielSerializer,
+    ValidationCodeSerializer, MatriculeOfficielSerializer, CentreInteretSerializer,
 )
 from rest_framework.exceptions import PermissionDenied
 from .permissions import EstAdminOuProviseur, EstAdministrateur, LoginRateThrottle, ChangementMotDePasseThrottle
@@ -150,6 +150,19 @@ class ProfilView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class CentresInteretView(generics.ListAPIView):
+    """
+    GET /api/auth/interets/ — Centres d'intérêt actifs, avec leur catégorie.
+    Public : la page d'inscription en a besoin avant toute connexion (aucune donnée personnelle).
+    """
+    serializer_class = CentreInteretSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_queryset(self):
+        return CentreInteret.objects.filter(actif=True).select_related('categorie')
 
 
 class ChangementMotDePasseView(APIView):

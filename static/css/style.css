@@ -429,6 +429,20 @@ button.btn-primaire:hover, input[type="submit"].btn-primaire:hover, button.btn-p
     --rayon-petit: 8px;
 }
 
+/* ---------- Centres d'intérêt : puces sélectionnables ---------- */
+.groupe-interets .titre-categorie-interet { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--couleur-texte-secondaire); margin: 1rem 0 .4rem; }
+.groupe-interets .titre-categorie-interet:first-child { margin-top: 0; }
+.puces-interets { display: flex; flex-wrap: wrap; gap: .5rem; }
+.puce-interet { position: relative; display: inline-flex; align-items: center; gap: .35rem; min-height: 40px; padding: .35rem .9rem; border-radius: 999px; border: 1.5px solid rgba(0,0,0,0.12); background: var(--couleur-carte); color: var(--couleur-texte); font-size: .85rem; cursor: pointer; transition: all .15s ease; user-select: none; }
+.puce-interet:hover { border-color: var(--couleur-accent); }
+.puce-interet input { position: absolute; opacity: 0; pointer-events: none; }
+.puce-interet .bi-check-lg { display: none; }
+.puce-interet.selectionnee { background: var(--couleur-primaire); border-color: var(--couleur-primaire); color: #fff; font-weight: 500; }
+.puce-interet.selectionnee .bi-check-lg { display: inline; }
+.puce-interet:focus-within { outline: 2px solid var(--couleur-accent); outline-offset: 2px; }
+[data-theme="dark"] .puce-interet { border-color: rgba(255,255,255,0.15); }
+[data-theme="dark"] .puce-interet.selectionnee { border-color: var(--couleur-primaire); }
+
 .btn, .form-control, .form-select, .input-group-text,
 .carte-stat, .carte, .carte-role, .badge, .modal-content,
 .dropdown-menu, .list-group-item, .alert, .nav-pills .btn-filtre,

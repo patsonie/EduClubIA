@@ -36,7 +36,7 @@ async function chargerRecommandations() {
             <div class="col-12 text-center text-muted py-5">
                 <i class="bi bi-emoji-neutral" style="font-size: 2rem;"></i>
                 <p class="mt-2">Aucune recommandation disponible pour l'instant.<br>
-                Complétez vos centres d'intérêt dans <a href="/parametres/">votre profil</a> pour obtenir des suggestions personnalisées.</p>
+                Complétez vos centres d'intérêt dans <a href="/profil/">votre profil</a> pour obtenir des suggestions personnalisées.</p>
             </div>`;
         return;
     }
