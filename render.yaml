@@ -5,7 +5,7 @@ services:
   - type: web
     name: educlubia
     runtime: python
-    plan: starter            # le plan gratuit n'a pas de disque persistant
+    plan: free               # pas de disque persistant ni de shell : fichiers envoyés éphémères (voir README)
     buildCommand: ./build.sh
     startCommand: daphne -b 0.0.0.0 -p $PORT config.asgi:application
     healthCheckPath: /connexion/
@@ -27,9 +27,9 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      # Email : sans SMTP, les codes et liens sont affichés dans les logs (backend console).
-      - key: EMAIL_BACKEND
-        value: django.core.mail.backends.smtp.EmailBackend
+      # Email : sans SMTP, les codes et liens sont affichés dans les logs (backend console par
+      # défaut). Pour un vrai envoi, définir EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+      # et les variables ci-dessous.
       - key: EMAIL_HOST
         sync: false
       - key: EMAIL_HOST_USER
@@ -38,15 +38,9 @@ services:
         sync: false
       - key: DEFAULT_FROM_EMAIL
         sync: false
-      # Fichiers : disque persistant monté sur /var/data (ci-dessous) OU stockage S3.
-      - key: MEDIA_ROOT
-        value: /var/data/media
-      - key: IA_MODELES_DIR
-        value: /var/data/ia_modeles
-    disk:
-      name: educlubia-data
-      mountPath: /var/data
-      sizeGB: 1
+      # Fichiers : le disque du plan gratuit est effacé à chaque déploiement/redémarrage.
+      # Pour conserver photos et justificatifs, utiliser un stockage S3 compatible
+      # (AWS_STORAGE_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_ENDPOINT_URL).
 
 databases:
   - name: educlubia-db
