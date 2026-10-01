@@ -199,17 +199,27 @@ class UtilisateurSerializer(serializers.ModelSerializer):
     """Serializer pour afficher/modifier le profil utilisateur."""
 
     nom_complet = serializers.ReadOnlyField()
+    role_libelle = serializers.CharField(source='get_role_display', read_only=True)
+    type_encadreur_libelle = serializers.SerializerMethodField()
     nombre_enfants = serializers.SerializerMethodField()
     interets = champ_interets()
     interets_details = CentreInteretSerializer(source='interets', many=True, read_only=True)
 
     class Meta:
         model = Utilisateur
-        fields = ['id', 'email', 'nom', 'prenom', 'nom_complet', 'role',
+        fields = ['id', 'email', 'nom', 'prenom', 'nom_complet', 'role', 'role_libelle',
                    'telephone', 'date_naissance', 'photo', 'classe', 'filiere',
                    'centres_interet', 'interets', 'interets_details', 'moyenne_generale', 'profession',
+                   # Identité scolaire / professionnelle : lecture seule (validée par l'administration)
+                   'matricule', 'etablissement', 'type_encadreur', 'type_encadreur_libelle', 'type_lien_eleve',
+                   # Champs professionnels modifiables par l'intéressé
+                   'fonction', 'domaine_competence', 'service_responsabilite',
                    'nombre_enfants', 'is_active', 'date_joined']
-        read_only_fields = ['id', 'email', 'role', 'is_active', 'date_joined']
+        read_only_fields = ['id', 'email', 'role', 'is_active', 'date_joined', 'matricule', 'etablissement',
+                            'type_encadreur', 'type_lien_eleve', 'moyenne_generale']
+
+    def get_type_encadreur_libelle(self, obj):
+        return obj.get_type_encadreur_display() if obj.type_encadreur else None
 
     def validate_interets(self, value):
         if self.instance is not None and self.instance.role != Utilisateur.Role.ELEVE and value:

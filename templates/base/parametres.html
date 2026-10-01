@@ -4,7 +4,7 @@
 {% block titre %}Mon profil{% endblock %}
 
 {% block contenu %}
-<h4 class="fw-bold mb-4">Paramètres</h4>
+<h4 class="fw-bold mb-4">Mon profil</h4>
 
 <div class="row g-4">
     <div class="col-md-3">
@@ -25,62 +25,110 @@
 
     <div class="col-md-9">
         <div class="carte p-4" id="onglet-compte">
-            <h6 class="fw-semibold mb-3">Mon profil</h6>
-            <form id="formulaire-profil">
-                <div class="text-center mb-4">
-                    <img id="apercu-photo" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90'%3E%3Crect width='90' height='90' fill='%23ece9fb'/%3E%3Ccircle cx='45' cy='35' r='16' fill='%23a29bfe'/%3E%3Cpath d='M14 90c2-20 15-30 31-30s29 10 31 30z' fill='%23a29bfe'/%3E%3C/svg%3E" alt="Photo de profil" class="rounded-circle mb-2" width="90" height="90" style="object-fit: cover;">
-                    <div>
-                        <label class="btn btn-sm btn-light" for="champ-photo">Changer la photo</label>
-                        <input type="file" id="champ-photo" name="photo" accept="image/*" class="d-none">
+            <div class="d-flex align-items-center gap-3 flex-wrap mb-4" id="entete-profil">
+                <div class="text-center">
+                    <img id="apercu-photo" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90'%3E%3Crect width='90' height='90' fill='%23ece9fb'/%3E%3Ccircle cx='45' cy='35' r='16' fill='%23a29bfe'/%3E%3Cpath d='M14 90c2-20 15-30 31-30s29 10 31 30z' fill='%23a29bfe'/%3E%3C/svg%3E" alt="Photo de profil" class="rounded-circle" width="88" height="88" style="object-fit: cover;">
+                </div>
+                <div class="flex-grow-1" style="min-width: 0;">
+                    <h5 class="fw-bold mb-0 text-truncate" id="entete-nom">…</h5>
+                    <div class="text-muted small text-truncate" id="entete-email"></div>
+                    <span class="badge bg-light text-dark border mt-2" id="entete-role"></span>
+                    <div class="mt-2">
+                        <label class="btn btn-sm btn-light" for="champ-photo"><i class="bi bi-camera me-1"></i>Changer la photo</label>
+                        <input type="file" id="champ-photo" name="photo" accept="image/png,image/jpeg,image/webp" class="d-none">
+                        <span class="text-muted small ms-1">JPG, PNG ou WebP</span>
                     </div>
                 </div>
+            </div>
 
+            <form id="formulaire-profil" novalidate>
+                <h6 class="fw-semibold small text-muted mb-3">INFORMATIONS PERSONNELLES</h6>
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label small fw-medium">Nom</label>
-                        <input type="text" class="form-control" name="nom" id="champ-nom">
+                        <label class="form-label small fw-medium" for="champ-prenom">Prénom</label>
+                        <input type="text" class="form-control" name="prenom" id="champ-prenom" required>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-medium">Prénom</label>
-                        <input type="text" class="form-control" name="prenom" id="champ-prenom">
+                        <label class="form-label small fw-medium" for="champ-nom">Nom</label>
+                        <input type="text" class="form-control" name="nom" id="champ-nom" required>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-medium">Email</label>
+                        <label class="form-label small fw-medium" for="champ-email">Email</label>
                         <input type="email" class="form-control" id="champ-email" disabled>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-medium">Téléphone</label>
+                        <label class="form-label small fw-medium" for="champ-telephone">Téléphone</label>
                         <input type="text" class="form-control" name="telephone" id="champ-telephone">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small fw-medium">Rôle</label>
-                        <input type="text" class="form-control" id="champ-role" disabled>
-                    </div>
-                    <div class="col-12 d-none" id="bloc-preferences-eleve">
-                        <hr class="my-3">
-                        <h6 class="fw-semibold small text-muted mb-3">PROFIL SCOLAIRE (utilisé pour vos recommandations IA)</h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-medium">Classe</label>
-                                <input type="text" class="form-control" name="classe" id="champ-classe" placeholder="Ex: 2nde A">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-medium">Filière</label>
-                                <input type="text" class="form-control" name="filiere" id="champ-filiere" placeholder="Ex: Scientifique, Littéraire">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label small fw-medium" id="libelle-interets">Mes centres d'intérêt</label>
-                                <div id="conteneur-interets" role="group" aria-labelledby="libelle-interets">
-                                    <div class="text-muted small">Chargement…</div>
-                                </div>
-                                <div class="form-text">Choisissez-en autant que vous voulez : ils servent à vous recommander des clubs adaptés.</div>
-                            </div>
-                        </div>
+                        <label class="form-label small fw-medium" for="champ-date-naissance">Date de naissance</label>
+                        <input type="date" class="form-control" name="date_naissance" id="champ-date-naissance">
                     </div>
                 </div>
 
-                <div id="alerte-succes-profil" class="alert alert-success d-none mt-3 small">Profil mis à jour avec succès.</div>
-                <button type="submit" class="btn btn-primaire-app mt-3">Mettre à jour</button>
+                <div class="d-none" id="section-complementaire">
+                    <hr class="my-4">
+                    <h6 class="fw-semibold small text-muted mb-3">INFORMATIONS COMPLÉMENTAIRES</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6 d-none" data-affiche-si="etablissement">
+                            <label class="form-label small fw-medium" for="champ-etablissement">Établissement</label>
+                            <input type="text" class="form-control" id="champ-etablissement" disabled>
+                        </div>
+                        <div class="col-md-6 d-none" data-affiche-si="matricule">
+                            <label class="form-label small fw-medium" for="champ-matricule">Matricule</label>
+                            <input type="text" class="form-control" id="champ-matricule" disabled>
+                        </div>
+                        <div class="col-md-6 d-none" data-roles="eleve">
+                            <label class="form-label small fw-medium" for="champ-classe">Classe</label>
+                            <input type="text" class="form-control" name="classe" id="champ-classe" placeholder="Ex: 2nde A">
+                        </div>
+                        <div class="col-md-6 d-none" data-roles="eleve">
+                            <label class="form-label small fw-medium" for="champ-filiere">Filière</label>
+                            <input type="text" class="form-control" name="filiere" id="champ-filiere" placeholder="Ex: Scientifique, Littéraire">
+                        </div>
+                        <div class="col-md-6 d-none" data-affiche-si="type_encadreur_libelle">
+                            <label class="form-label small fw-medium" for="champ-type-encadreur">Type d'encadreur</label>
+                            <input type="text" class="form-control" id="champ-type-encadreur" disabled>
+                        </div>
+                        <div class="col-md-6 d-none" data-roles="encadreur proviseur">
+                            <label class="form-label small fw-medium" for="champ-fonction">Fonction</label>
+                            <input type="text" class="form-control" name="fonction" id="champ-fonction">
+                        </div>
+                        <div class="col-md-6 d-none" data-roles="encadreur">
+                            <label class="form-label small fw-medium" for="champ-domaine">Domaine de compétence</label>
+                            <input type="text" class="form-control" name="domaine_competence" id="champ-domaine" placeholder="Ex: Sport, Informatique...">
+                        </div>
+                        <div class="col-md-6 d-none" data-roles="proviseur">
+                            <label class="form-label small fw-medium" for="champ-service">Service / responsabilité</label>
+                            <input type="text" class="form-control" name="service_responsabilite" id="champ-service">
+                        </div>
+                        <div class="col-md-6 d-none" data-roles="parent">
+                            <label class="form-label small fw-medium" for="champ-profession">Profession</label>
+                            <input type="text" class="form-control" name="profession" id="champ-profession">
+                        </div>
+                        <div class="col-md-6 d-none" data-affiche-si="type_lien_eleve">
+                            <label class="form-label small fw-medium" for="champ-lien">Lien avec l'élève</label>
+                            <input type="text" class="form-control" id="champ-lien" disabled>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">L'email, l'établissement et le matricule sont validés par l'administration : contactez-la pour les modifier.</div>
+                </div>
+
+                <div class="d-none" id="bloc-preferences-eleve">
+                    <hr class="my-4">
+                    <h6 class="fw-semibold small text-muted mb-3">MES CENTRES D'INTÉRÊT (utilisés pour vos recommandations IA)</h6>
+                    <div id="conteneur-interets" role="group" aria-label="Mes centres d'intérêt">
+                        <div class="text-muted small">Chargement…</div>
+                    </div>
+                    <div class="form-text">Choisissez-en autant que vous voulez : ils servent à vous recommander des clubs adaptés.</div>
+                </div>
+
+                <div id="alerte-erreur-profil" class="alert alert-danger d-none mt-3 small" role="alert"></div>
+                <div id="alerte-succes-profil" class="alert alert-success d-none mt-3 small" role="status">Profil mis à jour avec succès.</div>
+                <button type="submit" class="btn btn-primaire-app mt-3" id="btn-enregistrer-profil">
+                    <span class="texte-bouton">Enregistrer les modifications</span>
+                    <span class="texte-chargement d-none"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Enregistrement…</span>
+                </button>
             </form>
         </div>
 

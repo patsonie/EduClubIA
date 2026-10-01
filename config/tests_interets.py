@@ -1,6 +1,7 @@
 """Tests : profil, centres d'intérêt, recommandations IA et inscription en une seule page."""
 from unittest import mock
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework import status
 
@@ -61,6 +62,62 @@ class ProfilTest(BaseDonnees):
         noms = [c['nom'] for c in r.data]
         self.assertIn("Informatique", noms)
         self.assertNotIn(inactif.nom, noms)
+
+
+class ProfilCompletTest(BaseDonnees):
+    def test_libelle_du_role_et_champs_par_role(self):
+        self.enc1.fonction, self.enc1.type_encadreur = "Coach", Utilisateur.TypeEncadreur.VACATAIRE
+        self.enc1.save()
+        self.auth(self.enc1)
+        r = self.client.get('/api/auth/profil/')
+        self.assertEqual(r.data['role_libelle'], "Encadreur")
+        self.assertEqual(r.data['fonction'], "Coach")
+        self.assertEqual(r.data['type_encadreur_libelle'], "Encadreur vacataire")
+        self.auth(self.eleve1)
+        r = self.client.get('/api/auth/profil/')
+        self.assertEqual(r.data['role_libelle'], "Élève")
+        self.assertEqual(r.data['matricule'], "M1")
+        self.assertIsNone(r.data['type_encadreur_libelle'])
+
+    def test_identite_validee_et_moyenne_non_modifiables(self):
+        self.auth(self.eleve1)
+        r = self.client.patch('/api/auth/profil/', {
+            'matricule': 'PIRATE', 'etablissement': 'Autre lycée', 'moyenne_generale': '20',
+            'role': 'administrateur', 'email': 'pirate@t.cm', 'telephone': '699000000', 'fonction': 'Chef',
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.eleve1.refresh_from_db()
+        self.assertEqual(self.eleve1.matricule, "M1")
+        self.assertIsNone(self.eleve1.moyenne_generale)
+        self.assertEqual(self.eleve1.role, Utilisateur.Role.ELEVE)
+        self.assertEqual(self.eleve1.email, "el1@t.cm")
+        self.assertEqual(self.eleve1.telephone, "699000000")  # champ réellement modifiable
+
+    def test_modification_des_champs_professionnels(self):
+        self.auth(self.enc1)
+        r = self.client.patch('/api/auth/profil/', {
+            'fonction': 'Entraîneur', 'domaine_competence': 'Sport', 'date_naissance': '1990-05-04',
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.enc1.refresh_from_db()
+        self.assertEqual((self.enc1.fonction, self.enc1.domaine_competence), ('Entraîneur', 'Sport'))
+        self.assertEqual(str(self.enc1.date_naissance), '1990-05-04')
+
+    def test_envoi_de_photo_en_multipart(self):
+        import io
+        import tempfile
+        from PIL import Image
+        tampon = io.BytesIO()
+        Image.new('RGB', (20, 20), (120, 80, 200)).save(tampon, 'PNG')
+        with tempfile.TemporaryDirectory() as dossier, override_settings(MEDIA_ROOT=dossier):
+            self.auth(self.eleve1)
+            fichier = SimpleUploadedFile('moi.png', tampon.getvalue(), content_type='image/png')
+            r = self.client.patch('/api/auth/profil/', {'photo': fichier}, format='multipart')
+            self.assertEqual(r.status_code, status.HTTP_200_OK, r.data)
+            self.assertIn('utilisateurs/photos/', r.data['photo'])
+            faux = SimpleUploadedFile('virus.exe', b'MZ', content_type='application/octet-stream')
+            r = self.client.patch('/api/auth/profil/', {'photo': faux}, format='multipart')
+            self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class InteretsProfilTest(BaseDonnees):

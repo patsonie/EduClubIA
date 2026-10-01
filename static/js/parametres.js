@@ -15,19 +15,42 @@ async function chargerProfil() {
     const profil = await appelApi('/auth/profil/');
     if (!profil) return;
 
-    document.getElementById('champ-nom').value = profil.nom || '';
-    document.getElementById('champ-prenom').value = profil.prenom || '';
-    document.getElementById('champ-email').value = profil.email || '';
-    document.getElementById('champ-telephone').value = profil.telephone || '';
-    document.getElementById('champ-role').value = profil.role || '';
+    // En-tête
+    document.getElementById('entete-nom').textContent = profil.nom_complet || '';
+    document.getElementById('entete-email').textContent = profil.email || '';
+    document.getElementById('entete-role').textContent = profil.role_libelle || profil.role || '';
     if (profil.photo) {
         document.getElementById('apercu-photo').src = profil.photo;
     }
 
+    // Informations personnelles
+    document.getElementById('champ-nom').value = profil.nom || '';
+    document.getElementById('champ-prenom').value = profil.prenom || '';
+    document.getElementById('champ-email').value = profil.email || '';
+    document.getElementById('champ-telephone').value = profil.telephone || '';
+    document.getElementById('champ-date-naissance').value = profil.date_naissance || '';
+
+    // Informations complémentaires : seuls les champs du rôle (et les valeurs présentes) sont affichés
+    const valeurs = {
+        'champ-etablissement': profil.etablissement, 'champ-matricule': profil.matricule,
+        'champ-classe': profil.classe, 'champ-filiere': profil.filiere,
+        'champ-type-encadreur': profil.type_encadreur_libelle, 'champ-fonction': profil.fonction,
+        'champ-domaine': profil.domaine_competence, 'champ-service': profil.service_responsabilite,
+        'champ-profession': profil.profession, 'champ-lien': profil.type_lien_eleve,
+    };
+    Object.entries(valeurs).forEach(([id, v]) => { document.getElementById(id).value = v || ''; });
+
+    const section = document.getElementById('section-complementaire');
+    document.querySelectorAll('[data-roles]').forEach(bloc => {
+        bloc.classList.toggle('d-none', !bloc.dataset.roles.split(' ').includes(profil.role));
+    });
+    document.querySelectorAll('[data-affiche-si]').forEach(bloc => {
+        bloc.classList.toggle('d-none', !profil[bloc.dataset.afficheSi]);
+    });
+    section.classList.toggle('d-none', !section.querySelector('.col-md-6:not(.d-none)'));
+
     if (profil.role === 'eleve') {
         document.getElementById('bloc-preferences-eleve').classList.remove('d-none');
-        document.getElementById('champ-classe').value = profil.classe || '';
-        document.getElementById('champ-filiere').value = profil.filiere || '';
         const centres = await appelApi('/auth/interets/');
         afficherPucesInterets(
             document.getElementById('conteneur-interets'),
@@ -55,37 +78,111 @@ document.getElementById('champ-photo').addEventListener('change', (e) => {
 
 document.getElementById('formulaire-profil').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const donnees = {
-        nom: document.getElementById('champ-nom').value,
-        prenom: document.getElementById('champ-prenom').value,
-        telephone: document.getElementById('champ-telephone').value,
-    };
+    const form = e.target;
+    const bouton = document.getElementById('btn-enregistrer-profil');
+    if (bouton.disabled) return; // anti double-clic
+    const alerteSucces = document.getElementById('alerte-succes-profil');
+    const alerteErreur = document.getElementById('alerte-erreur-profil');
+    alerteSucces.classList.add('d-none');
+    alerteErreur.classList.add('d-none');
+    form.querySelectorAll('.erreur-champ').forEach(x => x.remove());
+    form.querySelectorAll('.is-invalid').forEach(x => x.classList.remove('is-invalid'));
 
+    // Champs modifiables visibles (les champs en lecture seule n'ont pas de "name")
+    const donnees = {};
+    form.querySelectorAll('input[name]').forEach(c => {
+        if (!c.closest('.d-none')) donnees[c.name] = c.value.trim();
+    });
+    if (!donnees.nom || !donnees.prenom) {
+        [['nom', donnees.nom], ['prenom', donnees.prenom]].forEach(([n, v]) => {
+            if (!v) marquerErreurProfil(n, 'Ce champ est obligatoire.');
+        });
+        return;
+    }
+    if (donnees.date_naissance === '') donnees.date_naissance = null;
     if (!document.getElementById('bloc-preferences-eleve').classList.contains('d-none')) {
-        donnees.classe = document.getElementById('champ-classe').value;
-        donnees.filiere = document.getElementById('champ-filiere').value;
         donnees.interets = lireInteretsSelectionnes(document.getElementById('conteneur-interets'));
     }
 
-    const bouton = e.submitter || e.target.querySelector('button[type="submit"]');
     bouton.disabled = true;
-    const alerteSucces = document.getElementById('alerte-succes-profil');
-    alerteSucces.classList.add('d-none');
+    bouton.querySelector('.texte-bouton').classList.add('d-none');
+    bouton.querySelector('.texte-chargement').classList.remove('d-none');
+
+    // La photo (fichier) part en multipart ; le reste en JSON.
+    const fichier = document.getElementById('champ-photo').files[0];
+    if (fichier) {
+        const envoi = new FormData();
+        envoi.append('photo', fichier);
+        try {
+            const r = await fetch(`${API_BASE}/auth/profil/`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${obtenirToken()}` }, // pas de Content-Type : boundary auto
+                body: envoi,
+            });
+            const corps = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                afficherErreursProfil(corps);
+                finChargementProfil(bouton);
+                return;
+            }
+            if (corps.photo) document.getElementById('apercu-photo').src = corps.photo;
+            document.getElementById('champ-photo').value = '';
+        } catch (_) {
+            alerteErreur.textContent = "Impossible d'envoyer la photo. Vérifiez votre connexion.";
+            alerteErreur.classList.remove('d-none');
+            finChargementProfil(bouton);
+            return;
+        }
+    }
 
     const resultat = await appelApi('/auth/profil/', {
         method: 'PATCH',
         body: JSON.stringify(donnees),
     });
-    bouton.disabled = false;
+    finChargementProfil(bouton);
 
     if (resultat && resultat.id) {
+        // Profil actualisé : on réaffiche ce que le serveur a réellement enregistré.
+        document.getElementById('entete-nom').textContent = resultat.nom_complet || '';
+        const nomHeader = document.getElementById('nom-utilisateur-connecte');
+        if (nomHeader) nomHeader.textContent = resultat.nom_complet || '';
         alerteSucces.classList.remove('d-none');
         setTimeout(() => alerteSucces.classList.add('d-none'), 3000);
     } else if (resultat) {
-        const premier = Object.values(resultat)[0];
-        alert(`Enregistrement impossible : ${Array.isArray(premier) ? premier[0] : premier}`);
+        afficherErreursProfil(resultat);
     }
 });
+
+function finChargementProfil(bouton) {
+    bouton.disabled = false;
+    bouton.querySelector('.texte-bouton').classList.remove('d-none');
+    bouton.querySelector('.texte-chargement').classList.add('d-none');
+}
+
+function marquerErreurProfil(nom, message) {
+    const champ = document.querySelector(`#formulaire-profil [name="${nom}"]`);
+    if (!champ) return false;
+    champ.classList.add('is-invalid');
+    const p = document.createElement('div');
+    p.className = 'erreur-champ small text-danger mt-1';
+    p.textContent = message;
+    champ.insertAdjacentElement('afterend', p);
+    return true;
+}
+
+/** Erreurs de l'API : sous le champ concerné si possible, sinon dans l'alerte générale. */
+function afficherErreursProfil(erreurs) {
+    const generales = [];
+    Object.entries(erreurs || {}).forEach(([nom, messages]) => {
+        const texte = Array.isArray(messages) ? messages.join(' ') : String(messages);
+        if (!marquerErreurProfil(nom, texte)) generales.push(texte);
+    });
+    if (generales.length) {
+        const alerte = document.getElementById('alerte-erreur-profil');
+        alerte.textContent = generales.join(' ');
+        alerte.classList.remove('d-none');
+    }
+}
 
 // ---------- Formulaire : changement de mot de passe ----------
 
