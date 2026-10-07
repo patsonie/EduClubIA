@@ -27,11 +27,14 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      # Email : sans SMTP, les codes et liens sont affichés dans les logs (backend console par
-      # défaut). Pour un vrai envoi, définir EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-      # et les variables ci-dessous.
+      # Email : le backend SMTP est activé automatiquement dès que EMAIL_HOST est défini ;
+      # sans EMAIL_HOST, les codes et liens sont seulement affichés dans les logs.
+      # Port 2525 : les instances gratuites de Render bloquent les ports SMTP 25/465/587
+      # (Brevo accepte 2525 avec STARTTLS).
       - key: EMAIL_HOST
         sync: false
+      - key: EMAIL_PORT
+        value: "2525"
       - key: EMAIL_HOST_USER
         sync: false
       - key: EMAIL_HOST_PASSWORD

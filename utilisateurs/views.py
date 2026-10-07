@@ -12,6 +12,7 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.core.mail import send_mail
 from django.conf import settings
+import logging
 import os
 import secrets
 
@@ -33,6 +34,8 @@ from .authentication import revoquer_jetons
 from notifications.models import Notification
 from notifications.services import creer_notification
 from .services import construire_dashboard_parent
+
+logger = logging.getLogger(__name__)
 
 
 def get_ip_client(request):
@@ -618,26 +621,36 @@ class EnvoyerCodeValidationView(APIView):
             # Sécurité : si le code n'existait pas encore (compte créé avant cette mise à jour), on le génère.
             utilisateur.code_validation_compte = f"RP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
 
+        # Envoi d'abord : le statut ne passe à « code envoyé » que si le serveur
+        # SMTP a accepté le message, sinon l'administrateur est prévenu de l'échec.
+        try:
+            send_mail(
+                subject="EduClubIA — Votre code d'invitation",
+                message=(
+                    f"Bonjour {utilisateur.prenom},\n\n"
+                    f"Votre acte de nomination a été reçu. Voici votre code d'invitation "
+                    f"(valable 24 heures) :\n\n"
+                    f"{utilisateur.code_validation_compte}\n\n"
+                    f"Rendez-vous sur la page de validation de compte et saisissez ce code "
+                    f"avec votre adresse email pour poursuivre votre inscription.\n\n"
+                    f"{settings.FRONTEND_BASE_URL}/validation-compte/"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[utilisateur.email],
+                fail_silently=False,
+            )
+        except Exception:
+            logger.exception("Échec d'envoi du code d'invitation au compte %s", utilisateur.pk)
+            return Response(
+                {"error": "L'email n'a pas pu être envoyé (serveur de messagerie injoignable ou refusé). "
+                          "Vérifiez la configuration SMTP puis réessayez."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         utilisateur.statut_validation = Utilisateur.StatutValidation.CODE_ENVOYE
         utilisateur.date_code_envoye = timezone.now()
         utilisateur.date_expiration_code = timezone.now() + timedelta(hours=24)
         utilisateur.save()
-
-        send_mail(
-            subject="EduClubIA — Votre code d'invitation",
-            message=(
-                f"Bonjour {utilisateur.prenom},\n\n"
-                f"Votre acte de nomination a été reçu. Voici votre code d'invitation "
-                f"(valable 24 heures) :\n\n"
-                f"{utilisateur.code_validation_compte}\n\n"
-                f"Rendez-vous sur la page de validation de compte et saisissez ce code "
-                f"avec votre adresse email pour poursuivre votre inscription.\n\n"
-                f"{settings.FRONTEND_BASE_URL}/validation-compte/"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[utilisateur.email],
-            fail_silently=True,
-        )
 
         return Response(
             {"message": f"Code d'invitation envoyé à {utilisateur.email}."},
@@ -700,18 +713,22 @@ class RenvoyerCodeExpireView(APIView):
             utilisateur.date_expiration_code = timezone.now() + timedelta(hours=24)
             utilisateur.save()
 
-            send_mail(
-                subject="EduClubIA — Nouveau code d'invitation",
-                message=(
-                    f"Bonjour {utilisateur.prenom},\n\n"
-                    f"Voici votre nouveau code d'invitation (valable 24 heures) :\n\n"
-                    f"{utilisateur.code_validation_compte}\n\n"
-                    f"{settings.FRONTEND_BASE_URL}/validation-compte/"
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[utilisateur.email],
-                fail_silently=True,
-            )
+            try:
+                send_mail(
+                    subject="EduClubIA — Nouveau code d'invitation",
+                    message=(
+                        f"Bonjour {utilisateur.prenom},\n\n"
+                        f"Voici votre nouveau code d'invitation (valable 24 heures) :\n\n"
+                        f"{utilisateur.code_validation_compte}\n\n"
+                        f"{settings.FRONTEND_BASE_URL}/validation-compte/"
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[utilisateur.email],
+                    fail_silently=False,
+                )
+            except Exception:
+                # Réponse inchangée (anti-énumération), mais l'échec reste visible dans les logs.
+                logger.exception("Échec d'envoi du nouveau code au compte %s", utilisateur.pk)
 
         # Même réponse dans tous les cas : ne révèle ni l'existence d'un compte,
         # ni son état de validation.

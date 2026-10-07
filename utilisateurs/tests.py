@@ -230,6 +230,45 @@ class InscriptionEleveEtEncadreurStatutTest(APITestCase):
         self.assertTrue(utilisateur.code_validation_compte.startswith("RP-"))
 
 
+class EnvoiCodeResponsableTest(APITestCase):
+    """Test : envoi par email du code d'invitation d'un responsable pédagogique."""
+
+    def setUp(self):
+        self.admin = Utilisateur.objects.create_user(
+            email="admincode@lycee.cm", password="motdepasse123",
+            nom="Admin", prenom="Code", role=Utilisateur.Role.ADMINISTRATEUR,
+        )
+        self.responsable = Utilisateur.objects.create_user(
+            email="rpcode@lycee.cm", password="motdepasse123",
+            nom="Code", prenom="Responsable", role=Utilisateur.Role.PROVISEUR,
+            statut_validation=Utilisateur.StatutValidation.EN_ATTENTE,
+            code_validation_compte="RP-ABCD1234",
+        )
+        self.client.force_authenticate(self.admin)
+        self.url = reverse('envoyer_code', args=[self.responsable.pk])
+
+    def test_code_envoye_par_email(self):
+        from django.core import mail
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["rpcode@lycee.cm"])
+        self.assertIn("RP-ABCD1234", mail.outbox[0].body)
+        self.responsable.refresh_from_db()
+        self.assertEqual(self.responsable.statut_validation, Utilisateur.StatutValidation.CODE_ENVOYE)
+
+    def test_echec_smtp_signale_et_statut_inchange(self):
+        from unittest.mock import patch
+        import smtplib
+        with patch('utilisateurs.views.send_mail', side_effect=smtplib.SMTPException("refus")), \
+                self.assertLogs('utilisateurs.views', level='ERROR'):
+            response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIn("error", response.data)
+        self.responsable.refresh_from_db()
+        self.assertEqual(self.responsable.statut_validation, Utilisateur.StatutValidation.EN_ATTENTE)
+
+
 class ConnexionCompteEnAttenteTest(APITestCase):
     """Test : la connexion est bloquée pour un compte non validé."""
 

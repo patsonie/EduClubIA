@@ -248,11 +248,16 @@ else:
         },
     }
 
-# Configuration email — mode développement : les emails s'affichent dans le terminal
-# au lieu d'être réellement envoyés. À remplacer par un vrai backend SMTP en production
+# Configuration email : SMTP dès qu'un EMAIL_HOST est défini, sinon les emails
+# s'affichent dans le terminal/les logs (mode développement, rien n'est envoyé).
 
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='')
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')

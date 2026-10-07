@@ -62,7 +62,7 @@ Les tests peuvent tourner sans MySQL : `DATABASE_URL=sqlite:///db.sqlite3 python
 | `ALLOWED_HOSTS`, `RENDER_EXTERNAL_HOSTNAME` | Hôtes autorisés ; sur Render, alimente aussi CORS, `FRONTEND_BASE_URL` et `NUM_PROXIES` |
 | `FRONTEND_BASE_URL` | Base des liens envoyés par email (déduite de Render, sinon `http://127.0.0.1:8000`) |
 | `NUM_PROXIES` | Nombre de proxys de confiance devant l'application (1 sur Render) : nécessaire au throttling par IP |
-| `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | Emails (console par défaut : rien n'est réellement envoyé) |
+| `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | Emails : SMTP dès que `EMAIL_HOST` est défini, sinon console (rien n'est réellement envoyé). Sur Render gratuit, utiliser `EMAIL_PORT=2525` (ports 25/465/587 bloqués) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NOM`, `ADMIN_PRENOM` | Création de l'administrateur initial (`bootstrap_admin`) |
 | `MEDIA_ROOT` | Dossier des fichiers envoyés (disque persistant sur Render) |
 | `AWS_STORAGE_BUCKET_NAME` (+ `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_ENDPOINT_URL`, `AWS_S3_REGION_NAME`) | Stockage objet S3 (optionnel) |

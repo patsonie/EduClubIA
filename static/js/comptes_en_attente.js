@@ -59,7 +59,7 @@ async function chargerComptesEnAttente(role = '') {
         bouton.addEventListener('click', async (e) => {
             const id = e.currentTarget.dataset.id;
             const resultat = await appelApi(`/auth/comptes/${id}/envoyer_code/`, { method: 'POST' });
-            if (resultat) alert(resultat.message);
+            if (resultat) alert(resultat.message || resultat.error);
             chargerComptesEnAttente(document.querySelector('.btn-filtre.active').dataset.role);
         });
     });
@@ -68,7 +68,7 @@ async function chargerComptesEnAttente(role = '') {
         bouton.addEventListener('click', async (e) => {
             const id = e.currentTarget.dataset.id;
             const resultat = await appelApi(`/auth/comptes/${id}/regenerer_code/`, { method: 'POST' });
-            if (resultat) alert(resultat.message);
+            if (resultat) alert(resultat.message || resultat.error);
             chargerComptesEnAttente(document.querySelector('.btn-filtre.active').dataset.role);
         });
     });
