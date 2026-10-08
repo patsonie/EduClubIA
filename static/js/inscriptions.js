@@ -1,8 +1,11 @@
+// Page « Inscriptions » (gestionnaires) : demandes d'inscription des élèves aux clubs.
+// Couleur des badges selon le statut de l'inscription.
 const BADGES_STATUT_INSCRIPTION = {
     en_attente: 'warning', validee: 'success', refusee: 'danger',
     annulee: 'secondary', archivee: 'dark',
 };
 
+// Ligne du tableau : boutons valider/refuser uniquement pour une demande en attente.
 function ligneInscription(inscription) {
     const couleur = BADGES_STATUT_INSCRIPTION[inscription.statut] || 'secondary';
     const dateFormatee = new Date(inscription.date_inscription).toLocaleDateString('fr-FR');
@@ -23,6 +26,7 @@ function ligneInscription(inscription) {
         </tr>`;
 }
 
+// Branche les boutons valider/refuser, puis recharge la liste.
 function attacherActionsInscriptions(statutActuel) {
     document.querySelectorAll('.btn-valider-inscription').forEach(bouton => {
         bouton.addEventListener('click', async (e) => {
@@ -40,6 +44,7 @@ function attacherActionsInscriptions(statutActuel) {
     });
 }
 
+// Charge les inscriptions filtrées par statut (par défaut : en attente).
 async function chargerInscriptions(statut = 'en_attente') {
     const endpoint = statut ? `/inscriptions/?statut=${statut}` : '/inscriptions/';
     const data = await appelApi(endpoint);
@@ -53,6 +58,7 @@ async function chargerInscriptions(statut = 'en_attente') {
     attacherActionsInscriptions(statut);
 }
 
+// Boutons de filtre par statut.
 document.querySelectorAll('.btn-filtre').forEach(bouton => {
     bouton.addEventListener('click', (e) => {
         document.querySelectorAll('.btn-filtre').forEach(b => b.classList.remove('active'));

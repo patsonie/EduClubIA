@@ -1,5 +1,7 @@
+// Page « Mes présences » (élève). Couleur du badge selon le statut de présence.
 const BADGES_PRESENCE = { present: 'success', absent: 'danger', excuse: 'warning', retard: 'info' };
 
+// Affiche le taux de présence de l'élève puis la liste de ses présences.
 async function chargerMesPresences() {
     const profil = await appelApi('/auth/profil/');
     const rapport = await appelApi(`/participations/rapport_individuel/?eleve_id=${profil.id}`);
@@ -9,6 +11,7 @@ async function chargerMesPresences() {
         <div class="col-md-4"><div class="carte-stat"><div class="valeur">${rapport.total_presences}</div><div class="libelle">Présences</div></div></div>
         <div class="col-md-4"><div class="carte-stat"><div class="valeur">${rapport.total_activites}</div><div class="libelle">Activités totales</div></div></div>`;
 
+    // Liste détaillée des présences.
     const participations = await appelApi('/participations/');
     const data = participations.results || participations;
     const tbody = document.getElementById('tableau-mes-presences');

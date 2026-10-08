@@ -1,6 +1,8 @@
+// Page « Clubs » : liste, recherche, filtre par catégorie et création (administration / RP).
 let tousLesClubs = [];
 let roleUtilisateur = null;
 
+// Couleur du badge selon la catégorie du club.
 function badgeCategorieClub(categorie) {
     const couleurs = {
         scientifique: 'primary', sportif: 'success', culturel: 'warning',
@@ -9,6 +11,7 @@ function badgeCategorieClub(categorie) {
     return couleurs[categorie] || 'secondary';
 }
 
+// Carte d'un club (responsable, nombre de membres, lien vers le détail).
 function creerCarteClub(club) {
     const couleur = badgeCategorieClub(club.categorie);
     const placesRestantes = club.nombre_max_membres - club.nombre_membres_actuels;
@@ -33,6 +36,7 @@ function creerCarteClub(club) {
         </div>`;
 }
 
+// Affiche la liste des clubs (ou un message si elle est vide).
 function afficherClubs(clubs) {
     const conteneur = document.getElementById('conteneur-clubs');
     if (clubs.length === 0) {
@@ -42,6 +46,7 @@ function afficherClubs(clubs) {
     conteneur.innerHTML = clubs.map(creerCarteClub).join('');
 }
 
+// Filtre côté navigateur par nom et par catégorie.
 function filtrerClubs() {
     const recherche = document.getElementById('recherche-club').value.toLowerCase();
     const categorie = document.getElementById('filtre-categorie').value;
@@ -55,6 +60,7 @@ function filtrerClubs() {
     afficherClubs(resultats);
 }
 
+// Charge les clubs ; le bouton « Nouveau club » n'apparaît que pour l'administration et le RP.
 async function chargerClubs() {
     const profil = await appelApi('/auth/profil/');
     roleUtilisateur = profil?.role;
@@ -68,9 +74,11 @@ async function chargerClubs() {
     afficherClubs(tousLesClubs);
 }
 
+// Recherche et filtre en direct.
 document.getElementById('recherche-club').addEventListener('input', filtrerClubs);
 document.getElementById('filtre-categorie').addEventListener('change', filtrerClubs);
 
+// Formulaire de création d'un club.
 document.getElementById('formulaire-nouveau-club').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);

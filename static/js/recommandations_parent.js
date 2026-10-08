@@ -1,3 +1,5 @@
+// Page « Recommandations » du parent : clubs conseillés par l'IA pour l'enfant choisi.
+// Carte d'une recommandation (médaille pour les 3 premières, couleur selon le score).
 function carteRecommandationParent(reco, rang) {
     const medailles = ['🥇', '🥈', '🥉'];
     const medaille = rang < 3 ? medailles[rang] : '';
@@ -15,6 +17,7 @@ function carteRecommandationParent(reco, rang) {
         </div>`;
 }
 
+// Charge les recommandations de l'enfant choisi.
 async function chargerRecommandationsEnfant(eleveId) {
     const conteneur = document.getElementById('conteneur-recommandations-parent');
     conteneur.innerHTML = '<div class="col-12 text-center text-muted py-5">Chargement...</div>';
@@ -25,6 +28,7 @@ async function chargerRecommandationsEnfant(eleveId) {
         : '<div class="col-12 text-center text-muted py-5">Aucune recommandation disponible pour cet enfant.</div>';
 }
 
+// Remplit la liste des enfants et affiche le premier.
 async function initialiserSelectEnfants() {
     const dashboard = await appelApi('/auth/dashboard-parent/');
     const select = document.getElementById('select-enfant-reco');

@@ -1,9 +1,14 @@
+// Outils communs à toutes les pages connectées (chargé par base.html) :
+// appels à l'API avec le jeton JWT, menu selon le rôle, déconnexion, thème, protection XSS.
+// Adresse de base de l'API (même domaine que le site).
 const API_BASE = window.location.origin + '/api';
 
+// Jeton d'accès JWT conservé dans le navigateur après la connexion.
 function obtenirToken() {
     return localStorage.getItem('access_token');
 }
 
+// Évite de lancer plusieurs renouvellements de jeton en même temps.
 let rafraichissementEnCours = null;
 
 /** Obtient un nouvel access token à partir du refresh token (rotation incluse). */
@@ -33,12 +38,15 @@ async function rafraichirToken() {
     return rafraichissementEnCours;
 }
 
+// Efface les jetons et renvoie vers la page de connexion.
 function redirigerVersConnexion() {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     window.location.href = '/connexion/';
 }
 
+// Fonction centrale pour appeler l'API : ajoute le jeton, gère l'expiration (401)
+// et renvoie la réponse JSON. Utilisée par tous les scripts de pages.
 async function appelApi(endpoint, options = {}, dejaRafraichi = false) {
     const token = obtenirToken();
     const reponse = await fetch(`${API_BASE}${endpoint}`, {
@@ -67,6 +75,7 @@ async function appelApi(endpoint, options = {}, dejaRafraichi = false) {
     }
 }
 
+// Affiche uniquement le menu latéral correspondant au rôle de l'utilisateur.
 function afficherMenuSelonRole(role) {
     document.querySelectorAll('.menu-administrateur, .menu-proviseur, .menu-encadreur, .menu-eleve, .menu-parent')
         .forEach(el => el.classList.add('d-none'));
@@ -84,6 +93,7 @@ function afficherMenuSelonRole(role) {
     }
 }
 
+// En-tête de page : nom et initiales de l'utilisateur, menu du rôle, badge des notifications non lues.
 async function initialiserEntete() {
     const profil = await appelApi('/auth/profil/');
     if (!profil) return;
@@ -103,6 +113,7 @@ async function initialiserEntete() {
     }
 }
 
+// Bouton « Déconnexion ».
 document.getElementById('lien-deconnexion')?.addEventListener('click', async (e) => {
     e.preventDefault();
     // Révocation côté serveur du refresh token (blacklist), puis nettoyage local.
@@ -124,6 +135,7 @@ document.getElementById('lien-deconnexion')?.addEventListener('click', async (e)
 
 document.addEventListener('DOMContentLoaded', initialiserEntete);
 
+// Met en évidence, dans le menu latéral, le lien de la page actuelle.
 function surlignerLienActif() {
     const cheminActuel = window.location.pathname;
     document.querySelectorAll('.sidebar .nav-link').forEach(lien => {
@@ -135,6 +147,7 @@ function surlignerLienActif() {
 
 document.addEventListener('DOMContentLoaded', surlignerLienActif);
 
+// Thème clair/sombre mémorisé dans le navigateur.
 function appliquerThemeInitial() {
     const themeSauvegarde = localStorage.getItem('theme') || 'clair';
     const icone = document.getElementById('icone-theme');
@@ -149,6 +162,7 @@ function appliquerThemeInitial() {
     }
 }
 
+// Menu latéral sur mobile : ouverture/fermeture du tiroir.
 function initialiserSidebarMobile() {
     const sidebar = document.getElementById('sidebar-menu');
     const overlay = document.getElementById('overlay-sidebar');
@@ -176,6 +190,7 @@ function initialiserSidebarMobile() {
 
 document.addEventListener('DOMContentLoaded', initialiserSidebarMobile);
 
+// Rend tous les tableaux défilables horizontalement sur petit écran.
 function rendreTableauxResponsives() {
     document.querySelectorAll('table.table').forEach(table => {
         if (table.parentElement.classList.contains('table-responsive')) return;

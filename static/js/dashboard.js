@@ -1,3 +1,5 @@
+// Page « Tableau de bord » : contenu différent selon le rôle (élève, responsable pédagogique, autres).
+// Couleur associée à chaque catégorie de club (graphiques et pastilles).
 const COULEURS_CATEGORIES = {
     scientifique: '#6C5CE7', sportif: '#22c55e', culturel: '#f59e0b',
     artistique: '#ef4444', technologique: '#3b82f6', humanitaire: '#a855f7', autre: '#6b7280',
@@ -5,6 +7,7 @@ const COULEURS_CATEGORIES = {
 
 // ---------- Vue générale (admin/gestionnaires) ----------
 
+// Carte de chiffre clé avec sa variation par rapport au mois précédent.
 function creerCarteStat(icone, valeur, libelle, variation) {
     const positif = variation >= 0;
     const signeVariation = positif ? '+' : '';
@@ -26,6 +29,7 @@ function creerCarteStat(icone, valeur, libelle, variation) {
         </div>`;
 }
 
+// Carte d'une activité à venir.
 function creerCarteActivite(activite) {
     const couleur = COULEURS_CATEGORIES[activite.categorie] || '#6b7280';
     return `
@@ -40,6 +44,7 @@ function creerCarteActivite(activite) {
         </div>`;
 }
 
+// Vue générale : chiffres clés, courbe des inscriptions, répartition des clubs, activités à venir.
 async function chargerDashboardGeneral(profil) {
     document.getElementById('titre-bienvenue').textContent = `Bonjour, ${profil.prenom} 👋`;
 
@@ -53,6 +58,7 @@ async function chargerDashboardGeneral(profil) {
         creerCarteStat('bi-clipboard-check-fill', stats.nombre_inscriptions, 'Inscriptions', stats.variation_inscriptions),
     ].join('');
 
+    // Graphique (Chart.js) : évolution des inscriptions sur 12 mois.
     new Chart(document.getElementById('graphique-evolution'), {
         type: 'line',
         data: {
@@ -66,6 +72,7 @@ async function chargerDashboardGeneral(profil) {
         options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
     });
 
+    // Graphique en anneau : nombre de clubs par catégorie.
     new Chart(document.getElementById('graphique-repartition'), {
         type: 'doughnut',
         data: {
@@ -87,6 +94,7 @@ async function chargerDashboardGeneral(profil) {
 
 // ---------- Vue Élève ----------
 
+// Carte de chiffre clé pour l'élève.
 function creerCarteStatEleve(icone, valeur, libelle) {
     return `
         <div class="col-6 col-md-3">
@@ -102,6 +110,7 @@ function creerCarteStatEleve(icone, valeur, libelle) {
         </div>`;
 }
 
+// Ligne d'une activité à venir de l'élève.
 function ligneActiviteEleve(a) {
     return `
         <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
@@ -118,6 +127,7 @@ function ligneActiviteEleve(a) {
         </div>`;
 }
 
+// Ligne d'un club de l'élève avec barre de taux de présence.
 function ligneClubEleve(club, taux) {
     return `
         <div class="d-flex align-items-center gap-3 py-2 border-bottom">
@@ -135,6 +145,7 @@ function ligneClubEleve(club, taux) {
         </div>`;
 }
 
+// Ligne d'une notification récente.
 function ligneNotificationEleve(n) {
     return `
         <div class="py-2 border-bottom">
@@ -143,6 +154,7 @@ function ligneNotificationEleve(n) {
         </div>`;
 }
 
+// Badge de progression de l'élève (assiduité, ponctualité...).
 function creerBadgeEleve(icone, titre, valeur, couleur) {
     return `
         <div class="col-6 col-md-2">
@@ -154,6 +166,7 @@ function creerBadgeEleve(icone, titre, valeur, couleur) {
         </div>`;
 }
 
+// Vue élève : chiffres, niveau, prochaines activités, clubs, notifications, badges.
 async function chargerDashboardEleve(profil) {
     document.getElementById('salutation-eleve').textContent = `Bonjour, ${profil.prenom} ! 👋`;
 
@@ -173,6 +186,7 @@ async function chargerDashboardEleve(profil) {
         creerCarteStatEleve('bi-pie-chart-fill', `${rapport.taux_participation}%`, 'Taux de participation'),
     ].join('');
 
+    // Niveau selon le taux de participation (≥ 80 % avancé, ≥ 50 % intermédiaire).
     const niveauEl = document.getElementById('niveau-eleve');
     if (rapport.taux_participation >= 80) niveauEl.textContent = 'Avancé';
     else if (rapport.taux_participation >= 50) niveauEl.textContent = 'Intermédiaire';
@@ -207,6 +221,7 @@ async function chargerDashboardEleve(profil) {
 
 // ---------- Vue Responsable pédagogique ----------
 
+// Carte de chiffre clé du responsable pédagogique.
 function creerCarteStatProviseur(icone, valeur, libelle) {
     return `
         <div class="col-6 col-md-3">
@@ -222,6 +237,7 @@ function creerCarteStatProviseur(icone, valeur, libelle) {
         </div>`;
 }
 
+// Ligne d'une activité à venir (couleur de la catégorie du club).
 function ligneActiviteProviseur(activite) {
     const couleur = COULEURS_CATEGORIES[activite.categorie] || '#6b7280';
     return `
@@ -237,6 +253,7 @@ function ligneActiviteProviseur(activite) {
         </div>`;
 }
 
+// Barre de taux de présence d'un club.
 function barreParticipationProviseur(club) {
     const couleur = club.taux_participation >= 70 ? '#22c55e' : club.taux_participation >= 40 ? '#f59e0b' : '#ef4444';
     return `
@@ -251,6 +268,7 @@ function barreParticipationProviseur(club) {
         </div>`;
 }
 
+// Ligne de statistique rapide (nouveaux clubs, activités à valider, présences, absences).
 function ligneStatRapideProviseur(icone, couleur, valeur, libelle) {
     return `
         <div class="d-flex align-items-center gap-3 py-2 border-bottom">
@@ -264,6 +282,7 @@ function ligneStatRapideProviseur(icone, couleur, valeur, libelle) {
         </div>`;
 }
 
+// Ligne d'une notification récente.
 function ligneNotificationProviseur(n) {
     return `
         <div class="d-flex align-items-start gap-2 py-2 border-bottom">
@@ -275,6 +294,7 @@ function ligneNotificationProviseur(n) {
         </div>`;
 }
 
+// Durée écoulée lisible (« Il y a 5 min », « Il y a 2 heures »...).
 function tempsEcouleSimple(dateString) {
     const diffMs = new Date() - new Date(dateString);
     const diffMin = Math.floor(diffMs / 60000);
@@ -284,6 +304,7 @@ function tempsEcouleSimple(dateString) {
     return `Il y a ${Math.floor(diffH / 24)} jour${Math.floor(diffH / 24) > 1 ? 's' : ''}`;
 }
 
+// Vue responsable pédagogique : chiffres clés, activités, participation, graphiques, notifications.
 async function chargerDashboardProviseur(profil) {
     document.getElementById('salutation-proviseur').textContent = `Bonjour, ${profil.prenom} 👋`;
 
@@ -355,10 +376,11 @@ async function chargerDashboardProviseur(profil) {
 
 // ---------- Tableau "Inscriptions en attente" du dashboard proviseur ----------
 
+// Ligne d'un compte en attente (élève ou encadreur).
 function ligneAttenteProviseur(compte) {
     const details = compte.role === 'eleve'
         ? `Matricule : ${echapperHTML(compte.matricule || '-')}`
-        : `${echapperHTML(compte.domaine_competence || '-')}`;
+        : `${echapperHTML(compte.domaine_competence || '-')} · Club : ${echapperHTML(compte.club_souhaite || '-')}`;
 
     return `
         <tr data-id="${compte.id}">
@@ -372,6 +394,7 @@ function ligneAttenteProviseur(compte) {
         </tr>`;
 }
 
+// Charge les comptes en attente du rôle choisi et branche les boutons valider/refuser.
 async function chargerTableauAttenteProviseur(role = 'eleve') {
     const comptes = await appelApi(`/auth/comptes-en-attente/?role=${role}`);
     const tbody = document.getElementById('tableau-attente-proviseur');
@@ -395,6 +418,7 @@ async function chargerTableauAttenteProviseur(role = 'eleve') {
     });
 }
 
+// Onglets « Élèves / Encadreurs » du tableau des comptes en attente.
 document.querySelectorAll('[data-role-attente]').forEach(bouton => {
     bouton.addEventListener('click', (e) => {
         document.querySelectorAll('[data-role-attente]').forEach(b => b.classList.remove('active'));
@@ -407,6 +431,7 @@ document.querySelectorAll('[data-role-attente]').forEach(bouton => {
 
 // ---------- Aiguillage par rôle ----------
 
+// Affiche la vue correspondant au rôle de l'utilisateur connecté.
 async function chargerDashboard() {
     const profil = await appelApi('/auth/profil/');
     if (!profil) return;

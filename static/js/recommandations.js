@@ -1,3 +1,5 @@
+// Page « Recommandations » de l'élève : clubs conseillés par l'IA.
+// Jauge colorée du score (vert ≥ 70 %, orange ≥ 40 %, rouge sinon).
 function jaugeScore(score) {
     const couleur = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
     return `
@@ -9,6 +11,7 @@ function jaugeScore(score) {
         </div>`;
 }
 
+// Carte d'un club recommandé, avec lien vers sa page.
 function carteRecommandation(reco, rang) {
     const medailles = ['🥇', '🥈', '🥉'];
     const medaille = rang < 3 ? medailles[rang] : '';
@@ -27,6 +30,7 @@ function carteRecommandation(reco, rang) {
         </div>`;
 }
 
+// Charge les recommandations ; sans résultat, invite à compléter ses centres d'intérêt.
 async function chargerRecommandations() {
     const recommandations = await appelApi('/recommandations/');
     const conteneur = document.getElementById('conteneur-recommandations');

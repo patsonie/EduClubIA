@@ -1,5 +1,6 @@
 // Puces de centres d'intérêt, partagées par la page Profil et la page d'inscription.
 
+// Échappe le texte avant de l'insérer dans la page (protection XSS).
 function echapperHtmlInteret(texte) {
     const div = document.createElement('div');
     div.textContent = texte == null ? '' : String(texte);
@@ -8,6 +9,7 @@ function echapperHtmlInteret(texte) {
 
 /** Affiche les centres groupés par catégorie sous forme de puces à cocher. */
 function afficherPucesInterets(conteneur, centres, idsSelectionnes = []) {
+    // Regroupe les centres par catégorie.
     const selection = new Set((idsSelectionnes || []).map(Number));
     const groupes = {};
     (centres || []).forEach(c => { (groupes[c.categorie || 'Autres'] ||= []).push(c); });
@@ -18,6 +20,7 @@ function afficherPucesInterets(conteneur, centres, idsSelectionnes = []) {
         return;
     }
 
+    // Construit les puces à cocher (plusieurs choix possibles).
     conteneur.classList.add('groupe-interets');
     conteneur.innerHTML = noms.map(categorie => `
         <div class="titre-categorie-interet">${echapperHtmlInteret(categorie)}</div>
@@ -29,6 +32,7 @@ function afficherPucesInterets(conteneur, centres, idsSelectionnes = []) {
                 </label>`).join('')}
         </div>`).join('');
 
+    // Met en évidence une puce quand elle est cochée.
     conteneur.querySelectorAll('.puce-interet input').forEach(champ => {
         champ.addEventListener('change', () => {
             champ.closest('.puce-interet').classList.toggle('selectionnee', champ.checked);

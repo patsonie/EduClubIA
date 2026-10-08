@@ -1,3 +1,4 @@
+// Page « Notifications ». Icône selon le type de notification.
 const ICONES_TYPE = {
     nouvelle_activite: 'bi-calendar-plus text-primary',
     validation_inscription: 'bi-check-circle text-success',
@@ -8,6 +9,7 @@ const ICONES_TYPE = {
     autre: 'bi-bell text-secondary',
 };
 
+// Durée écoulée lisible (« il y a 3h », « il y a 2j »).
 function tempsEcoule(dateString) {
     const diffMs = new Date() - new Date(dateString);
     const diffHeures = Math.floor(diffMs / 3600000);
@@ -16,6 +18,7 @@ function tempsEcoule(dateString) {
     return `il y a ${Math.floor(diffHeures / 24)}j`;
 }
 
+// Une notification de la liste (fond différent si non lue).
 function ligneNotification(notif) {
     const icone = ICONES_TYPE[notif.type_notification] || ICONES_TYPE.autre;
     const classeNonLue = !notif.lu ? 'notification-non-lue' : '';
@@ -32,6 +35,7 @@ function ligneNotification(notif) {
         </div>`;
 }
 
+// Charge toutes les notifications ou seulement les non lues, et branche « Marquer lu ».
 async function chargerNotifications(filtre = 'toutes') {
     const endpoint = filtre === 'non_lues' ? '/notifications/?lu=false' : '/notifications/';
     const notifications = await appelApi(endpoint);
@@ -50,6 +54,7 @@ async function chargerNotifications(filtre = 'toutes') {
     });
 }
 
+// Boutons de filtre « Toutes / Non lues ».
 document.querySelectorAll('.btn-filtre').forEach(bouton => {
     bouton.addEventListener('click', (e) => {
         document.querySelectorAll('.btn-filtre').forEach(b => b.classList.remove('active'));
@@ -58,6 +63,7 @@ document.querySelectorAll('.btn-filtre').forEach(bouton => {
     });
 });
 
+// Bouton « Tout marquer comme lu ».
 document.getElementById('btn-tout-lire').addEventListener('click', async () => {
     await appelApi('/notifications/tout_marquer_lu/', { method: 'POST' });
     chargerNotifications(document.querySelector('.btn-filtre.active').dataset.filtre);

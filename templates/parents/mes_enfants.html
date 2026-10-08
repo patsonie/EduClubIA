@@ -8,6 +8,53 @@
 
 <div id="bandeau-demandes" class="alert alert-info d-none" role="status"></div>
 
+<!-- Demande de rattachement : par matricule si le parent le connaît, sinon par nom.
+     Le lien n'est créé qu'après validation par le responsable pédagogique. -->
+<div class="carte p-4 mb-4">
+    <h6 class="fw-semibold mb-1"><i class="bi bi-person-plus me-2"></i>Rattacher mon enfant</h6>
+    <p class="text-muted small mb-3">Votre demande sera vérifiée par le responsable pédagogique avant que vous puissiez suivre votre enfant.</p>
+
+    <ul class="nav nav-pills small mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#rattachement-matricule" type="button">Je connais son matricule</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#rattachement-nom" type="button">Je ne connais que son nom</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <form class="tab-pane fade show active" id="rattachement-matricule" novalidate>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label small fw-medium" for="champ-matricule-enfant">Matricule de l'élève</label>
+                    <input type="text" class="form-control" id="champ-matricule-enfant" name="matricule" maxlength="30" required>
+                </div>
+                <div class="col-md-auto">
+                    <button type="submit" class="btn btn-primaire-app">Envoyer la demande</button>
+                </div>
+            </div>
+        </form>
+
+        <form class="tab-pane fade" id="rattachement-nom" novalidate>
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label small fw-medium" for="champ-nom-enfant">Nom et prénom de l'élève</label>
+                    <input type="text" class="form-control" id="champ-nom-enfant" name="nom_complet_enfant" maxlength="200" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small fw-medium" for="champ-classe-enfant">Classe (facultatif)</label>
+                    <input type="text" class="form-control" id="champ-classe-enfant" name="classe" maxlength="50" placeholder="Ex : 2nde C">
+                </div>
+                <div class="col-12">
+                    <label class="form-label small fw-medium" for="champ-message-enfant">Message (facultatif)</label>
+                    <textarea class="form-control" id="champ-message-enfant" name="message" rows="2"></textarea>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primaire-app">Envoyer la demande</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div id="retour-rattachement" class="small mt-3 d-none" role="status"></div>
+</div>
+
 <div id="conteneur-enfants" class="row g-4">
     <div class="col-12 text-center text-muted py-5">Chargement...</div>
 </div>

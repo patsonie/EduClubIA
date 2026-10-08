@@ -1,3 +1,5 @@
+// Page « Détail d'un club » : en-tête, membres, activités, statistiques et bouton d'inscription de l'élève.
+// Petite carte de statistique (onglet « Statistiques »).
 function creerCarteStatMini(icone, valeur, libelle) {
     return `
         <div class="col-6 col-md-3">
@@ -13,6 +15,7 @@ function creerCarteStatMini(icone, valeur, libelle) {
         </div>`;
 }
 
+// Carte d'une activité du club, avec badge de statut.
 function creerCarteActiviteClub(activite) {
     const badges = {
         planifiee: 'warning', validee: 'primary', en_cours: 'info',
@@ -30,12 +33,14 @@ function creerCarteActiviteClub(activite) {
         </div>`;
 }
 
+// Charge tout le contenu de la page (CLUB_ID est fourni par le gabarit HTML).
 async function chargerDetailClub() {
     const club = await appelApi(`/clubs/${CLUB_ID}/`);
     if (!club) return;
 
     document.getElementById('fil-ariane-club').textContent = club.nom;
 
+    // En-tête : nom, catégorie, description, responsable, nombre de membres.
     document.getElementById('entete-club').innerHTML = `
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
@@ -56,12 +61,14 @@ async function chargerDetailClub() {
 
     afficherBoutonInscription(club);
 
+    // Liste des membres (visible par les gestionnaires et les élèves membres).
     const membres = await appelApi(`/clubs/${CLUB_ID}/membres/`);
     const tableauMembres = document.getElementById('tableau-membres');
     tableauMembres.innerHTML = membres && membres.length
         ? membres.map(ligneMembre).join('')
         : '<tr><td colspan="4" class="text-center text-muted py-3">Aucun membre pour l\'instant.</td></tr>';
 
+    // Bouton « Retirer du club » de chaque membre.
     document.querySelectorAll('.btn-retirer-membre').forEach(bouton => {
         bouton.addEventListener('click', async (e) => {
             if (!confirm('Retirer cet élève du club ?')) return;
@@ -74,6 +81,7 @@ async function chargerDetailClub() {
         });
     });
 
+    // Activités du club.
     const activites = await appelApi(`/activites/?club=${CLUB_ID}`);
     const listeActivites = document.getElementById('liste-activites-club');
     const activitesArray = activites.results || activites;
@@ -81,6 +89,7 @@ async function chargerDetailClub() {
         ? activitesArray.map(creerCarteActiviteClub).join('')
         : '<div class="col-12 text-center text-muted py-3">Aucune activité pour ce club.</div>';
 
+    // Statistiques du club.
     const stats = await appelApi(`/clubs/${CLUB_ID}/statistiques/`);
     if (stats) {
         document.getElementById('conteneur-stats-club').innerHTML = [
@@ -150,6 +159,7 @@ function messageErreurApi(resultat, defaut) {
     return (Array.isArray(valeur) ? valeur.join(' ') : valeur) || defaut;
 }
 
+// Ligne d'un membre dans le tableau.
 function ligneMembre(m) {
     return `
         <tr data-eleve="${m.id}">

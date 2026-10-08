@@ -1,4 +1,5 @@
 // Application immédiate du thème sauvegardé, avant le rendu de la page (évite le flash).
+// Fonction exécutée tout de suite (avant l'affichage).
 (function appliquerThemeImmediatement() {
     const theme = localStorage.getItem('theme') || 'clair';
     if (theme === 'sombre') {
@@ -24,6 +25,7 @@ function initialiserBoutonTheme() {
             document.documentElement.removeAttribute('data-theme');
             document.documentElement.removeAttribute('data-bs-theme');
             localStorage.setItem('theme', 'clair');
+            // Bascule entre thème clair et sombre au clic, et mémorise le choix.
             if (icone) icone.className = 'bi bi-moon-fill';
         } else {
             document.documentElement.setAttribute('data-theme', 'dark');

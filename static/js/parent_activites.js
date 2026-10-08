@@ -1,5 +1,7 @@
+// Page « Activités de mes enfants » (parent). Couleur des badges selon le statut de l'activité.
 const BADGES_ACTIVITE_PARENT = { planifiee: 'warning', validee: 'primary', en_cours: 'info', terminee: 'success', annulee: 'danger' };
 
+// Activités à venir de l'enfant choisi (données du tableau de bord parent).
 async function chargerActivitesEnfant(eleveId) {
     const dashboard = await appelApi('/auth/dashboard-parent/');
     const enfant = dashboard.enfants.find(e => String(e.id) === String(eleveId));
@@ -20,6 +22,7 @@ async function chargerActivitesEnfant(eleveId) {
         </tr>`).join('');
 }
 
+// Remplit la liste des enfants et affiche le premier.
 async function initialiserSelectEnfantsActivites() {
     const dashboard = await appelApi('/auth/dashboard-parent/');
     const select = document.getElementById('select-enfant-activites');

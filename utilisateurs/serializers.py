@@ -181,8 +181,6 @@ class InscriptionSerializer(serializers.ModelSerializer):
    
     # Création effective du compte une fois toutes les validations passées.
     def create(self, validated_data):
-        from .models import RelationParentEleve
-
         # Retire les champs qui ne sont pas des colonnes du modèle Utilisateur.
         validated_data.pop('password2')
         password = validated_data.pop('password')
@@ -222,16 +220,10 @@ class InscriptionSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({"club": str(erreur)})
 
             if role == Utilisateur.Role.PARENT and matricule_enfant:
-                enfant = Utilisateur.objects.filter(
-                    matricule=matricule_enfant, role=Utilisateur.Role.ELEVE
-                ).first()
-                if enfant:
-                    # Simple demande de rattachement : un gestionnaire doit la valider.
-                    # Le matricule seul ne prouve pas la filiation.
-                    RelationParentEleve.objects.get_or_create(
-                        parent=utilisateur, enfant=enfant,
-                        defaults={'statut': RelationParentEleve.Statut.EN_ATTENTE},
-                    )
+                # Simple demande de rattachement : un gestionnaire doit la valider.
+                # Le matricule seul ne prouve pas la filiation.
+                from .services import demander_rattachement_par_matricule
+                demander_rattachement_par_matricule(utilisateur, matricule_enfant)
 
         return utilisateur
 
@@ -605,6 +597,10 @@ class DemandeRattachementSerializer(serializers.ModelSerializer):
             or not request or request.user.role not in ('administrateur', 'proviseur')
         ):
             return []
+        # Demande par matricule : l'élève correspondant est déjà connu.
+        if obj.enfant_id:
+            e = obj.enfant
+            return [{'id': e.id, 'nom_complet': e.nom_complet, 'matricule': e.matricule, 'classe': e.classe}]
         # Recherche par mots du nom saisi, puis tri des élèves par nombre de mots correspondants.
         mots = [m for m in obj.nom_complet_enfant.split() if len(m) >= 2]
         if not mots:

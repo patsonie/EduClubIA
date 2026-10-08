@@ -1,9 +1,12 @@
+// Page « Utilisateurs » (administration) : liste, recherche, suspension et réactivation des comptes.
+// Libellés des rôles et couleurs des statuts.
 const LIBELLES_ROLE_ADMIN = {
     administrateur: 'Administrateur', proviseur: 'Responsable pédagogique',
     encadreur: 'Encadreur', eleve: 'Élève', parent: "Parent d'élève",
 };
 const BADGES_STATUT_ADMIN = { valide: 'success', en_attente: 'warning', refuse: 'danger', suspendu: 'secondary' };
 
+// Ligne d'un utilisateur ; l'administrateur ne peut pas être suspendu depuis cette page.
 function ligneUtilisateurAdmin(u) {
     const couleurStatut = BADGES_STATUT_ADMIN[u.statut_validation] || 'secondary';
     const dateFormatee = new Date(u.date_joined).toLocaleDateString('fr-FR');
@@ -23,6 +26,7 @@ function ligneUtilisateurAdmin(u) {
         </tr>`;
 }
 
+// Branche les boutons suspendre/réactiver.
 function attacherActionsUtilisateurs() {
     document.querySelectorAll('.btn-suspendre').forEach(bouton => {
         bouton.addEventListener('click', async (e) => {
@@ -38,6 +42,7 @@ function attacherActionsUtilisateurs() {
     });
 }
 
+// Charge la liste selon la recherche et les filtres choisis.
 async function chargerUtilisateurs() {
     const recherche = document.getElementById('recherche-utilisateur').value;
     const role = document.getElementById('filtre-role-utilisateur').value;
@@ -59,6 +64,7 @@ async function chargerUtilisateurs() {
     attacherActionsUtilisateurs();
 }
 
+// Recherche lancée 300 ms après la dernière frappe (évite une requête par lettre).
 let delaiRecherche;
 document.getElementById('recherche-utilisateur').addEventListener('input', () => {
     clearTimeout(delaiRecherche);

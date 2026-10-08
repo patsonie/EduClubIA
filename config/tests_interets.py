@@ -243,7 +243,7 @@ class InscriptionUnePageTest(BaseDonnees):
             'type_lien_eleve': 'Mère', 'matricule_enfant': 'M1',
             'password': 'Motdepasse123', 'password2': 'Motdepasse123',
         }
-        with mock.patch('utilisateurs.models.RelationParentEleve.objects.get_or_create',
+        with mock.patch('utilisateurs.models.DemandeRattachement.objects.create',
                         side_effect=RuntimeError("panne")):
             with self.assertRaises(RuntimeError):
                 self.client.post('/api/auth/register/', donnees, format='json')

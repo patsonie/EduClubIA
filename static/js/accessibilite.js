@@ -6,9 +6,11 @@
  * - rend les messages « Chargement... » visibles (spinner) et annoncés aux lecteurs d'écran.
  */
 (function () {
+    // Types de champs concernés et compteur pour créer des identifiants uniques.
     const SELECTEUR_CHAMP = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea';
     let compteur = 0;
 
+    // Trouve le champ associé à un libellé (élément suivant ou dans le même bloc).
     function trouverChamp(label) {
         const suivant = label.nextElementSibling;
         if (suivant) {
@@ -18,6 +20,7 @@
         return label.parentElement ? label.parentElement.querySelector(SELECTEUR_CHAMP) : null;
     }
 
+    // Relie les libellés à leurs champs et donne un nom lisible aux champs et boutons qui n'en ont pas.
     function associerLibelles() {
         document.querySelectorAll('label:not([for])').forEach((label) => {
             if (label.querySelector('input, select, textarea')) return; // libellé englobant
@@ -41,6 +44,7 @@
         });
     }
 
+    // Remplace le texte « Chargement... » par un indicateur animé annoncé aux lecteurs d'écran.
     function ameliorerEtatsChargement() {
         document.querySelectorAll('td, div, li, p').forEach((element) => {
             if (element.children.length > 0) return;
@@ -57,6 +61,7 @@
         });
     }
 
+    // Lance les deux améliorations dès que la page est prête.
     function initialiser() {
         associerLibelles();
         ameliorerEtatsChargement();

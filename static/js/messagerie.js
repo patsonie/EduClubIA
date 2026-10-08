@@ -1,7 +1,9 @@
+// Page « Messagerie » : salons de discussion et messages en temps réel (WebSocket).
 let salonActuelId = null;
 let socketActuel = null;
 let utilisateurConnecteId = null;
 
+// Ligne d'un salon dans la liste de gauche (avec aperçu du dernier message).
 function ligneSalon(salon) {
     return `
         <div class="salon-item" data-id="${salon.id}">
@@ -12,6 +14,7 @@ function ligneSalon(salon) {
         </div>`;
 }
 
+// Bulle d'un message : à droite si c'est le mien, à gauche sinon.
 function bulleMessage(message) {
     const estMoi = message.expediteur_id === utilisateurConnecteId || message.expediteur === utilisateurConnecteId;
     return `
@@ -21,6 +24,7 @@ function bulleMessage(message) {
         </div>`;
 }
 
+// Charge les salons accessibles et rend chaque ligne cliquable.
 async function chargerSalons() {
     const profil = await appelApi('/auth/profil/');
     utilisateurConnecteId = profil?.id;
@@ -37,6 +41,7 @@ async function chargerSalons() {
     });
 }
 
+// Ouvre un salon : affiche l'historique puis se connecte en temps réel.
 async function ouvrirSalon(salonId, nomSalon) {
     salonActuelId = salonId;
     document.querySelectorAll('.salon-item').forEach(i => i.classList.remove('actif'));
@@ -55,6 +60,7 @@ async function ouvrirSalon(salonId, nomSalon) {
     connecterWebSocket(salonId);
 }
 
+// Connexion WebSocket au salon (après obtention d'un ticket d'accès).
 async function connecterWebSocket(salonId) {
     if (socketActuel) socketActuel.close();
 
@@ -67,6 +73,7 @@ async function connecterWebSocket(salonId) {
     const protocoleWS = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     socketActuel = new WebSocket(`${protocoleWS}//${window.location.host}/ws/messagerie/${salonId}/?ticket=${encodeURIComponent(reponseTicket.ticket)}`);
 
+    // Message reçu en temps réel : ajouté en bas de la conversation.
     socketActuel.onmessage = (event) => {
         const message = JSON.parse(event.data);
         const zoneMessages = document.getElementById('zone-messages');
@@ -77,6 +84,7 @@ async function connecterWebSocket(salonId) {
     socketActuel.onerror = () => console.warn('Connexion WebSocket indisponible pour ce salon.');
 }
 
+// Envoi d'un message via la connexion WebSocket.
 document.getElementById('formulaire-message').addEventListener('submit', (e) => {
     e.preventDefault();
     const champ = document.getElementById('champ-message');
@@ -89,6 +97,7 @@ document.getElementById('formulaire-message').addEventListener('submit', (e) => 
 
 document.addEventListener('DOMContentLoaded', chargerSalons);
 
+// Mobile : bouton retour vers la liste des salons.
 document.getElementById('btn-retour-conversation')?.addEventListener('click', () => {
     document.querySelector('.conteneur-messagerie')?.classList.remove('conversation-ouverte');
     if (socketActuel) { socketActuel.close(); socketActuel = null; }

@@ -1,5 +1,7 @@
+// Page « Présences de mes enfants » (parent). Couleur des badges selon la présence.
 const BADGES_PRESENCE_PARENT = { present: 'success', absent: 'danger', excuse: 'warning', retard: 'info' };
 
+// Taux de présence de l'enfant choisi, puis détail de ses présences.
 async function chargerPresencesEnfant(eleveId) {
     const rapport = await appelApi(`/participations/rapport_individuel/?eleve_id=${eleveId}`);
     document.getElementById('carte-taux-presence-enfant').innerHTML = `
@@ -21,6 +23,7 @@ async function chargerPresencesEnfant(eleveId) {
         : '<tr><td colspan="3" class="text-center text-muted py-4">Aucune présence enregistrée.</td></tr>';
 }
 
+// Remplit la liste des enfants et affiche le premier.
 async function initialiserSelectEnfantsPresences() {
     const dashboard = await appelApi('/auth/dashboard-parent/');
     const select = document.getElementById('select-enfant-presences');

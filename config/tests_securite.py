@@ -584,3 +584,55 @@ class EleveInscriptionClub(BaseDonnees):
         r = self.client.patch('/api/auth/profil/', {'interets': ids}, format='json')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(sorted(r.data['interets']), sorted(ids))
+
+
+class RattachementParMatricule(BaseDonnees):
+    """Le matricule seul ne rattache jamais un parent : demande en attente, réponse neutre."""
+    URL = '/api/auth/mes-enfants/associer/'
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()  # compteurs anti brute-force remis à zéro entre les tests
+        super().setUp()
+        self.parent2 = creer_utilisateur("par2@t.cm", Utilisateur.Role.PARENT)
+
+    def test_matricule_ne_cree_jamais_de_lien_valide(self):
+        self.auth(self.parent2)
+        r = self.client.post(self.URL, {'matricule': 'm2'}, format='json')
+        self.assertEqual(r.status_code, 202)
+        self.assertEqual(self.parent2.enfants.count(), 0)
+        self.assertFalse(RelationParentEleve.objects.filter(parent=self.parent2).exists())
+        # Le parent ne voit ni les activités ni les présences de l'élève.
+        self.assertEqual(self.client.get('/api/auth/mes-enfants/').data, [])
+
+    def test_reponse_identique_matricule_connu_ou_inconnu(self):
+        self.auth(self.parent2)
+        connu = self.client.post(self.URL, {'matricule': 'M2'}, format='json')
+        inconnu = self.client.post(self.URL, {'matricule': 'ZZZ999'}, format='json')
+        self.assertEqual((connu.status_code, connu.data), (inconnu.status_code, inconnu.data))
+        # Côté parent, les deux demandes apparaissent de la même façon, sans nom d'élève.
+        demandes = self.client.get('/api/auth/demandes-rattachement/').data
+        self.assertEqual({d['nom_complet_enfant'] for d in demandes}, {"Matricule M2", "Matricule ZZZ999"})
+        self.assertTrue(all(d['eleves_candidats'] == [] for d in demandes))
+        dashboard = self.client.get('/api/auth/dashboard-parent/').data
+        self.assertNotIn(self.eleve2.nom_complet, dashboard['demandes_en_attente'])
+
+    def test_gestionnaire_accepte_avec_l_eleve_pre_designe(self):
+        self.auth(self.parent2)
+        self.client.post(self.URL, {'matricule': 'M2'}, format='json')
+        self.auth(self.proviseur)
+        demande = self.client.get('/api/auth/demandes-rattachement/?statut=en_attente').data[0]
+        self.assertEqual(demande['eleves_candidats'][0]['id'], self.eleve2.id)
+        r = self.client.post(f"/api/auth/demandes-rattachement/{demande['id']}/accepter/", {}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(list(self.parent2.enfants), [self.eleve2])
+
+    def test_nombre_de_demandes_limite(self):
+        self.auth(self.parent2)
+        for i in range(5):
+            self.client.post(self.URL, {'matricule': f'X{i}'}, format='json')
+        self.assertEqual(self.client.post(self.URL, {'matricule': 'X9'}, format='json').status_code, 429)
+
+    def test_reserve_aux_parents(self):
+        self.auth(self.eleve1)
+        self.assertEqual(self.client.post(self.URL, {'matricule': 'M2'}, format='json').status_code, 403)

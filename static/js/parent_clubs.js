@@ -1,3 +1,4 @@
+// Page « Clubs de mes enfants » (parent) : clubs de l'enfant choisi dans la liste déroulante.
 async function chargerClubsEnfant(eleveId) {
     const conteneur = document.getElementById('conteneur-clubs-enfant');
     conteneur.innerHTML = '<div class="col-12 text-center text-muted py-5">Chargement...</div>';
@@ -17,6 +18,7 @@ async function chargerClubsEnfant(eleveId) {
         : '<div class="col-12 text-center text-muted py-5">Aucun club rejoint pour le moment.</div>';
 }
 
+// Remplit la liste des enfants (liens validés uniquement) et affiche le premier.
 async function initialiserSelectEnfantsClubs() {
     const dashboard = await appelApi('/auth/dashboard-parent/');
     const select = document.getElementById('select-enfant-clubs');

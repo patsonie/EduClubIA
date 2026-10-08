@@ -1,3 +1,4 @@
+// Page « Mes clubs » (élève) : clubs dont l'inscription est validée, avec bouton de désinscription.
 async function chargerMesClubs() {
     const inscriptions = await appelApi('/inscriptions/?statut=validee');
     const data = inscriptions.results || inscriptions;
@@ -8,6 +9,7 @@ async function chargerMesClubs() {
         return;
     }
 
+    // Une carte par club.
     conteneur.innerHTML = data.map(i => `
         <div class="col-md-6 col-lg-4">
             <div class="carte p-3 h-100">

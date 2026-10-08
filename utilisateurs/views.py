@@ -43,7 +43,7 @@ from .permissions import EstAdminOuProviseur, EstAdministrateur, LoginRateThrott
 from .authentication import revoquer_jetons
 from notifications.models import Notification
 from notifications.services import creer_notification
-from .services import construire_dashboard_parent
+from .services import construire_dashboard_parent, demander_rattachement_par_matricule
 
 # Journal technique (erreurs d'envoi d'email, etc.).
 logger = logging.getLogger(__name__)
@@ -334,17 +334,22 @@ class ClubsDisponiblesView(APIView):
         return Response(list(clubs))
 
 
-# === Association d'un parent à un enfant par matricule ===
-# ATTENTION : crée un lien validé immédiatement, ce qui contredit la règle du projet
-# (lien validé uniquement par un gestionnaire). À revoir avant mise en production.
+# === Demande de rattachement d'un parent à un enfant par matricule ===
+# Le matricule ne prouve pas la filiation : la demande reste « en attente » jusqu'à
+# sa validation par un gestionnaire (DemandeRattachementViewSet.accepter).
 class AssocierEnfantMatriculeView(APIView):
     """
     POST /api/auth/mes-enfants/associer/  body: {"matricule": "..."}
-    Le parent saisit le matricule de son enfant : si un élève porte ce matricule,
-    l'association est faite immédiatement. L'élève en est informé et le lien reste
-    révocable par un gestionnaire (delier_enfant). Tentatives limitées par compte.
+    Crée une demande de rattachement en attente (voir services.demander_rattachement_par_matricule).
+    La réponse est toujours la même, que le matricule existe ou non.
+    Nombre de demandes limité par compte (5 par quart d'heure).
     """
     permission_classes = [permissions.IsAuthenticated]
+
+    MESSAGE_NEUTRE = (
+        "Votre demande a été envoyée. Si ce matricule correspond à un élève, elle sera examinée "
+        "par le responsable pédagogique avant que vous puissiez suivre votre enfant."
+    )
 
     def post(self, request):
         parent = request.user
@@ -355,42 +360,19 @@ class AssocierEnfantMatriculeView(APIView):
         if not matricule:
             return Response({"matricule": ["Le matricule est requis."]}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Chaque demande compte, qu'elle aboutisse ou non (limite le volume de demandes).
         verifier_non_bloque('rattachement', parent.pk)
-        enfant = Utilisateur.objects.filter(
-            role=Utilisateur.Role.ELEVE, matricule__iexact=matricule,
-        ).exclude(statut_validation=Utilisateur.StatutValidation.REFUSE).first()
-        if not enfant:
-            enregistrer_echec('rattachement', parent.pk)
-            return Response(
-                {"matricule": ["Aucun élève inscrit ne porte ce matricule. Vérifiez la saisie."]},
-                status=status.HTTP_404_NOT_FOUND,
+        enregistrer_echec('rattachement', parent.pk)
+
+        demande = demander_rattachement_par_matricule(parent, matricule)
+        if demande:
+            JournalActivite.objects.create(
+                utilisateur=parent, action="Demande de rattachement par matricule",
+                details=f"parent={parent.id} demande={demande.id}", adresse_ip=get_ip_client(request),
             )
 
-        relation, creee = RelationParentEleve.objects.get_or_create(
-            parent=parent, enfant=enfant,
-            defaults={'statut': RelationParentEleve.Statut.VALIDEE},
-        )
-        if not creee and relation.statut == RelationParentEleve.Statut.VALIDEE:
-            return Response({"error": "Cet enfant est déjà associé à votre compte."}, status=status.HTTP_400_BAD_REQUEST)
-        if not creee:
-            relation.statut = RelationParentEleve.Statut.VALIDEE
-            relation.save(update_fields=['statut'])
-
-        JournalActivite.objects.create(
-            utilisateur=parent, action="Rattachement parent par matricule",
-            details=f"parent={parent.id} enfant={enfant.id}", adresse_ip=get_ip_client(request),
-        )
-        creer_notification(
-            enfant, Notification.TypeNotification.AUTRE,
-            "Nouveau parent associé",
-            f"{parent.nom_complet} a été associé(e) à votre compte en tant que parent. "
-            "Si ce n'est pas le cas, prévenez l'administration.",
-        )
-        return Response(
-            {"message": f"{enfant.nom_complet} est maintenant associé(e) à votre compte.",
-             "enfant": {"id": enfant.id, "nom_complet": enfant.nom_complet}},
-            status=status.HTTP_201_CREATED,
-        )
+        # Même réponse dans tous les cas (matricule inconnu, demande déjà faite, lien existant).
+        return Response({"message": self.MESSAGE_NEUTRE}, status=status.HTTP_202_ACCEPTED)
 
 
 # === Demandes d'association par nom de l'enfant (parent → responsable pédagogique) ===
@@ -456,7 +438,9 @@ class DemandeRattachementViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         self._verifier_gestionnaire(request)
         demande = self._demande_en_attente()
-        enfant = Utilisateur.objects.filter(pk=request.data.get('enfant'), role=Utilisateur.Role.ELEVE).first()
+        # Élève choisi par le gestionnaire, sinon celui pré-désigné par le matricule.
+        enfant_id = request.data.get('enfant') or demande.enfant_id
+        enfant = Utilisateur.objects.filter(pk=enfant_id, role=Utilisateur.Role.ELEVE).first()
         if not enfant:
             return Response({"enfant": ["Choisissez l'élève correspondant."]}, status=status.HTTP_400_BAD_REQUEST)
 

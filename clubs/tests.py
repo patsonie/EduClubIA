@@ -58,3 +58,27 @@ class RetirerMembreClubTest(APITestCase):
         response = self.client.post(url, {"eleve_id": self.eleve.id}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class CommandeClubsTypesTest(APITestCase):
+    """La commande creer_clubs_types crée les clubs une seule fois, sans encadreur."""
+
+    def test_creation_puis_relance_sans_doublon(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from clubs.management.commands.creer_clubs_types import CLUBS_TYPES
+
+        Club.objects.create(nom="Club Football", description="d", objectifs="o")  # déjà présent
+        call_command('creer_clubs_types', stdout=StringIO())
+        self.assertEqual(Club.objects.count(), len(CLUBS_TYPES))
+        self.assertFalse(Club.objects.filter(responsable__isnull=False).exists())
+        self.assertEqual(Club.objects.get(nom="Club Théâtre").statut, Club.Statut.ACTIF)
+
+        call_command('creer_clubs_types', stdout=StringIO())   # relance : rien de plus
+        self.assertEqual(Club.objects.count(), len(CLUBS_TYPES))
+
+    def test_simulation_n_ecrit_rien(self):
+        from io import StringIO
+        from django.core.management import call_command
+        call_command('creer_clubs_types', '--simulation', stdout=StringIO())
+        self.assertEqual(Club.objects.count(), 0)

@@ -1,10 +1,13 @@
+// Page « Activités » : liste, recherche, filtre par statut et création (gestionnaires).
 let toutesLesActivites = [];
 
+// Couleur des badges selon le statut de l'activité.
 const BADGES_STATUT = {
     planifiee: 'warning', validee: 'primary', en_cours: 'info',
     terminee: 'success', annulee: 'danger',
 };
 
+// Ligne du tableau d'une activité.
 function ligneActivite(activite) {
     const couleur = BADGES_STATUT[activite.statut] || 'secondary';
     return `
@@ -18,6 +21,7 @@ function ligneActivite(activite) {
         </tr>`;
 }
 
+// Affiche la liste (ou un message si elle est vide).
 function afficherActivites(activites) {
     const tbody = document.getElementById('tableau-activites');
     tbody.innerHTML = activites.length
@@ -25,6 +29,7 @@ function afficherActivites(activites) {
         : '<tr><td colspan="6" class="text-center text-muted py-4">Aucune activité trouvée.</td></tr>';
 }
 
+// Filtre côté navigateur par titre et par statut.
 function filtrerActivites() {
     const recherche = document.getElementById('recherche-activite').value.toLowerCase();
     const statut = document.getElementById('filtre-statut-activite').value;
@@ -37,6 +42,7 @@ function filtrerActivites() {
     afficherActivites(resultats);
 }
 
+// Remplit la liste des clubs du formulaire de création.
 async function remplirSelectClubs() {
     const data = await appelApi('/clubs/');
     const clubs = data.results || data;
@@ -44,6 +50,7 @@ async function remplirSelectClubs() {
     select.innerHTML = clubs.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
 }
 
+// Charge les activités ; le bouton « Nouvelle activité » n'apparaît que pour les gestionnaires.
 async function chargerActivites() {
     const profil = await appelApi('/auth/profil/');
     if (profil && ['administrateur', 'proviseur', 'encadreur'].includes(profil.role)) {
@@ -56,9 +63,11 @@ async function chargerActivites() {
     afficherActivites(toutesLesActivites);
 }
 
+// Recherche et filtre en direct.
 document.getElementById('recherche-activite').addEventListener('input', filtrerActivites);
 document.getElementById('filtre-statut-activite').addEventListener('change', filtrerActivites);
 
+// Formulaire de création d'une activité.
 document.getElementById('formulaire-nouvelle-activite').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);

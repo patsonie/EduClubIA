@@ -1,3 +1,5 @@
+// Page « Inscription » (publique) : formulaire unique adapté au rôle choisi
+// (élève, parent, encadreur, responsable pédagogique). Le serveur revérifie toutes les données.
 const API_BASE = window.location.origin + '/api';
 let roleSelectionne = null;
 let typeEncadreurSelectionne = null;

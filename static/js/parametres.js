@@ -1,3 +1,5 @@
+// Page « Paramètres / Profil » : informations personnelles, photo, centres d'intérêt (élève),
+// club encadré (encadreur), mot de passe et préférences de notification.
 // ---------- Bascule entre les onglets ----------
 
 document.querySelectorAll('.btn-onglet-param').forEach(bouton => {

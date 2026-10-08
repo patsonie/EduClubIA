@@ -1,3 +1,5 @@
+// Page « Rapports » (gestionnaires) : statistiques par club, export PDF et entraînement de l'IA.
+// Ligne d'un club ; couleur du taux de présence (vert ≥ 70 %, orange ≥ 40 %, rouge sinon).
 function ligneRapportClub(c) {
     const couleurTaux = c.taux_participation >= 70 ? 'success' : c.taux_participation >= 40 ? 'warning' : 'danger';
     return `
@@ -10,6 +12,7 @@ function ligneRapportClub(c) {
         </tr>`;
 }
 
+// Charge le rapport (tous les clubs ou un seul) et remplit les cartes et le tableau.
 async function chargerRapport(clubId = '') {
     const endpoint = clubId ? `/predictions/rapport-detaille/?club=${clubId}` : '/predictions/rapport-detaille/';
     const rapport = await appelApi(endpoint);
@@ -25,6 +28,7 @@ async function chargerRapport(clubId = '') {
         : '<tr><td colspan="5" class="text-center text-muted py-4">Aucune donnée disponible.</td></tr>';
 }
 
+// Remplit la liste de choix des clubs.
 async function remplirSelectClubsRapport() {
     const data = await appelApi('/clubs/');
     const clubs = data.results || data;
@@ -33,6 +37,7 @@ async function remplirSelectClubsRapport() {
         clubs.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
 }
 
+// Changement de club et bouton d'impression.
 document.getElementById('select-club-rapport').addEventListener('change', (e) => chargerRapport(e.target.value));
 document.getElementById('btn-imprimer-rapport').addEventListener('click', () => window.print());
 
@@ -41,8 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     chargerRapport();
 });
 
+// Le même bouton télécharge aussi la version PDF générée par le serveur.
 document.getElementById('btn-imprimer-rapport').addEventListener('click', telechargerRapportPDF);
 
+// Télécharge le PDF avec le jeton d'accès, puis déclenche l'enregistrement du fichier.
 async function telechargerRapportPDF() {
     const clubId = document.getElementById('select-club-rapport').value;
     const endpoint = clubId
@@ -71,6 +78,7 @@ async function telechargerRapportPDF() {
 }
 
 
+// Affiche le résultat du dernier entraînement des modèles IA.
 async function chargerDernierEntrainement() {
     const historique = await appelApi('/ia/historique-entrainement/');
     const conteneur = document.getElementById('statut-entrainement-ia');
@@ -83,6 +91,7 @@ async function chargerDernierEntrainement() {
     conteneur.innerHTML = `Dernier entraînement : <span class="text-${couleur} fw-medium">${dernier.statut}</span> — ${echapperHTML(dernier.type_declenchement)} — ${new Date(dernier.date_entrainement).toLocaleString('fr-FR')} (${dernier.duree_secondes}s)`;
 }
 
+// Bouton « Réentraîner maintenant » (administrateur).
 document.getElementById('btn-reentrainer-ia')?.addEventListener('click', async (e) => {
     e.target.disabled = true;
     e.target.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Entraînement en cours...';

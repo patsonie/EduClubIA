@@ -1,6 +1,9 @@
+// Page « Comptes en attente » (administration / RP) : validation ou refus des nouveaux comptes.
+// Compte en cours de refus (fenêtre de motif) et libellés des rôles.
 let compteIdEnCoursDeRefus = null;
 const LIBELLES_ROLES_ATTENTE = { eleve: 'Élève', encadreur: 'Encadreur', proviseur: 'Responsable pédagogique' };
 
+// Informations utiles à la décision selon le rôle (matricule, type d'encadreur, justificatif...).
 function detailsCompte(compte) {
     if (compte.role === 'eleve') {
         return `Matricule : ${compte.matricule || '-'}`;
@@ -10,7 +13,8 @@ function detailsCompte(compte) {
         const justif = compte.justificatif
             ? `<a href="#" class="btn-voir-justificatif" data-id="${compte.id}">Voir le justificatif</a>`
             : '<span class="text-muted">Aucun justificatif</span>';
-        return `${type} · ${compte.domaine_competence || '-'} · ${justif}`;
+        // Le club choisi à l'inscription est affiché pour que le RP le vérifie avant de valider.
+        return `${type} · ${echapperHTML(compte.domaine_competence || '-')} · Club : ${echapperHTML(compte.club_souhaite || '-')} · ${justif}`;
     }
     if (compte.role === 'proviseur') {
         return `${compte.fonction || '-'} · ${compte.service_responsabilite || '-'}`;
@@ -18,6 +22,7 @@ function detailsCompte(compte) {
     return '-';
 }
 
+// Première version de la ligne ; elle est remplacée par la définition plus bas dans ce fichier.
 function ligneCompteAttente(compte) {
     return `
         <tr data-id="${compte.id}">
@@ -38,6 +43,7 @@ function ligneCompteAttente(compte) {
         </tr>`;
 }
 
+// Charge les comptes en attente (filtre par rôle) et branche tous les boutons d'action.
 async function chargerComptesEnAttente(role = '') {
     const endpoint = role ? `/auth/comptes-en-attente/?role=${role}` : '/auth/comptes-en-attente/';
     const comptes = await appelApi(endpoint);
@@ -47,6 +53,7 @@ async function chargerComptesEnAttente(role = '') {
         ? comptes.map(ligneCompteAttente).join('')
         : '<tr><td colspan="5" class="text-center text-muted py-4">Aucun compte en attente.</td></tr>';
 
+    // Valider un compte.
     document.querySelectorAll('.btn-valider-compte').forEach(bouton => {
         bouton.addEventListener('click', async (e) => {
             const id = e.currentTarget.dataset.id;
@@ -55,6 +62,7 @@ async function chargerComptesEnAttente(role = '') {
         });
     });
 
+    // Responsable pédagogique : envoyer ou renvoyer le code de confirmation par email.
     document.querySelectorAll('.btn-envoyer-code').forEach(bouton => {
         bouton.addEventListener('click', async (e) => {
             const id = e.currentTarget.dataset.id;
@@ -73,6 +81,7 @@ async function chargerComptesEnAttente(role = '') {
         });
     });
 
+    // Refuser : ouvre la fenêtre de saisie du motif.
     document.querySelectorAll('.btn-ouvrir-refus').forEach(bouton => {
         bouton.addEventListener('click', (e) => {
             compteIdEnCoursDeRefus = e.currentTarget.dataset.id;
@@ -81,6 +90,7 @@ async function chargerComptesEnAttente(role = '') {
     });
 }
 
+// Confirmation du refus avec le motif saisi.
 document.getElementById('btn-confirmer-refus').addEventListener('click', async () => {
     const motif = document.getElementById('champ-motif-refus').value;
     await appelApi(`/auth/comptes/${compteIdEnCoursDeRefus}/refuser/`, {
@@ -92,6 +102,7 @@ document.getElementById('btn-confirmer-refus').addEventListener('click', async (
     chargerComptesEnAttente(document.querySelector('.btn-filtre.active').dataset.role);
 });
 
+// Boutons de filtre par rôle.
 document.querySelectorAll('.btn-filtre').forEach(bouton => {
     bouton.addEventListener('click', (e) => {
         document.querySelectorAll('.btn-filtre').forEach(b => b.classList.remove('active'));
@@ -103,6 +114,7 @@ document.querySelectorAll('.btn-filtre').forEach(bouton => {
 document.addEventListener('DOMContentLoaded', () => chargerComptesEnAttente());
 
 
+// Ouverture sécurisée d'un justificatif (téléchargé avec le jeton, jamais d'URL publique).
 document.addEventListener('click', async (e) => {
     if (!e.target.classList.contains('btn-voir-justificatif')) return;
     e.preventDefault();
@@ -123,10 +135,12 @@ document.addEventListener('click', async (e) => {
     window.open(url, '_blank');
 });
 
+// Couleur des badges selon l'étape de validation.
 const BADGES_STATUT_ATTENTE = {
     en_attente: 'warning', code_envoye: 'info', code_valide: 'primary', refuse: 'danger',
 };
 
+// Boutons du responsable pédagogique selon l'étape : envoi du code, renvoi, validation finale.
 function actionsProviseur(compte) {
     const boutonEnvoyer = `<button class="btn btn-sm btn-valider-action btn-envoyer-code" data-id="${compte.id}"><i class="bi bi-send me-1"></i>Envoyer le code</button>`;
     const boutonRegenerer = `<button class="btn btn-sm btn-light btn-regenerer-code" data-id="${compte.id}"><i class="bi bi-arrow-repeat me-1"></i>Régénérer</button>`;
@@ -139,6 +153,7 @@ function actionsProviseur(compte) {
     return '<span class="text-muted small">-</span>';
 }
 
+// Ligne d'un compte (cette définition remplace celle du haut) : colonne « Code » pour un RP.
 function ligneCompteAttente(compte) {
     const estProviseur = compte.role === 'proviseur';
     const couleurStatut = BADGES_STATUT_ATTENTE[compte.statut_validation] || 'secondary';

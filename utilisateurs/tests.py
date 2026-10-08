@@ -515,7 +515,9 @@ class SecuritePhase1Test(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         parent = Utilisateur.objects.get(email="par@lycee.cm")
         self.assertEqual(parent.enfants.count(), 0)
-        self.assertEqual(parent.relations_enfants.get().statut, 'en_attente')
+        demande = parent.demandes_rattachement.get()
+        self.assertEqual(demande.statut, 'en_attente')
+        self.assertEqual(demande.nom_complet_enfant, "Matricule MATP1")
 
     def test_matricule_inconnu_ne_revele_rien(self):
         response = self.client.post(reverse('inscription'), {

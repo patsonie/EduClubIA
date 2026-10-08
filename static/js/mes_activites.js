@@ -1,3 +1,5 @@
+// Page « Mes activités » (élève) : activités des clubs dont il est membre.
+// Récupère ses inscriptions validées, puis garde les activités de ces clubs.
 async function chargerMesActivites() {
     const inscriptions = await appelApi('/inscriptions/?statut=validee');
     const mesInscriptions = inscriptions.results || inscriptions;
@@ -8,6 +10,7 @@ async function chargerMesActivites() {
         .filter(a => clubsIds.some(id => mesInscriptions.find(i => i.club === id && i.club_nom)))
         .filter(a => mesInscriptions.some(i => i.club_nom === a.club_nom));
 
+    // Remplit le tableau (ou affiche un message s'il n'y a rien).
     const tbody = document.getElementById('tableau-mes-activites');
     tbody.innerHTML = activites.length
         ? activites.map(a => `

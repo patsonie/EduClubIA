@@ -1,3 +1,4 @@
+// Page « Présences » (encadreur / gestionnaires) : appel d'une activité.
 // Références aux éléments de l'interface et à l'activité courante.
 let activiteSelectionneeId = null;
 

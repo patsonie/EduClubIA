@@ -2,6 +2,51 @@ from django.utils import timezone
 from .models import Utilisateur
 
 
+def demander_rattachement_par_matricule(parent, matricule):
+    """
+    Enregistre une demande de rattachement à partir du matricule saisi par un parent.
+    La demande est créée QUE le matricule existe ou non : le parent voit la même chose
+    dans les deux cas (pas de moyen de tester des matricules). Si un élève porte ce
+    matricule, il est pré-désigné pour le gestionnaire, qui reste seul à valider le lien.
+    Retourne la demande créée, ou None si une demande identique est déjà en attente
+    ou si le lien existe déjà.
+    """
+    from .models import DemandeRattachement, RelationParentEleve
+    from notifications.models import Notification
+    from notifications.services import creer_notification
+
+    matricule = (matricule or '').strip()
+    if not matricule:
+        return None
+    libelle = f"Matricule {matricule.upper()}"
+
+    # Une seule demande en attente par matricule et par parent.
+    if DemandeRattachement.objects.filter(
+        parent=parent, nom_complet_enfant__iexact=libelle, statut=DemandeRattachement.Statut.EN_ATTENTE,
+    ).exists():
+        return None
+
+    enfant = Utilisateur.objects.filter(
+        role=Utilisateur.Role.ELEVE, matricule__iexact=matricule,
+    ).exclude(statut_validation=Utilisateur.StatutValidation.REFUSE).first()
+    # Enfant déjà rattaché (ou lien déjà en cours) : rien de nouveau à demander.
+    if enfant and RelationParentEleve.objects.filter(parent=parent, enfant=enfant).exists():
+        return None
+
+    demande = DemandeRattachement.objects.create(parent=parent, nom_complet_enfant=libelle, enfant=enfant)
+
+    # Les responsables pédagogiques sont prévenus qu'une demande attend leur décision.
+    for gestionnaire in Utilisateur.objects.filter(
+        role=Utilisateur.Role.PROVISEUR, statut_validation=Utilisateur.StatutValidation.VALIDE, is_active=True,
+    ):
+        creer_notification(
+            gestionnaire, Notification.TypeNotification.AUTRE,
+            "Demande de rattachement parent",
+            f"{parent.nom_complet} demande à être rattaché(e) à l'élève de {libelle.lower()}.",
+        )
+    return demande
+
+
 def construire_dashboard_parent(parent):
     """
     Construit les données du tableau de bord d'un parent : pour chaque enfant,
