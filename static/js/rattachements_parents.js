@@ -36,12 +36,16 @@ function ligneDemandeNominative(demande) {
     const date = demande.date_creation ? new Date(demande.date_creation).toLocaleDateString('fr-FR') : '-';
     const contact = [demande.parent_email, demande.parent_telephone].filter(Boolean).map(echapperHTML).join('<br>');
     const candidats = demande.eleves_candidats || [];
-    // Liste des élèves possibles (l'élève trouvé par matricule est déjà en tête).
-    const choix = candidats.length
-        ? `<select class="form-select form-select-sm mt-1 choix-eleve-demande">
-               ${candidats.map(e => `<option value="${e.id}">${echapperHTML(e.nom_complet)} — ${echapperHTML(e.matricule || 's/ matricule')} (${echapperHTML(e.classe || '-')})</option>`).join('')}
-           </select>`
-        : '<div class="text-danger small mt-1">Aucun élève correspondant trouvé.</div>';
+    // Liste des élèves possibles (élève trouvé par matricule, matricules proches ou noms proches).
+    // Si elle est vide, le gestionnaire recherche lui-même l'élève avec le champ en dessous.
+    const choix = `
+        <select class="form-select form-select-sm mt-1 choix-eleve-demande">
+            ${candidats.length
+                ? candidats.map(optionEleve).join('')
+                : '<option value="">Aucun élève proposé : recherchez-le ci-dessous</option>'}
+        </select>
+        <input type="search" class="form-control form-control-sm mt-1 recherche-eleve-demande"
+               placeholder="Rechercher un élève (nom ou matricule)" aria-label="Rechercher un élève">`;
     const precisions = [demande.classe && `Classe indiquée : ${echapperHTML(demande.classe)}`,
                         demande.message && `« ${echapperHTML(demande.message)} »`].filter(Boolean).join('<br>');
     return `
@@ -57,8 +61,7 @@ function ligneDemandeNominative(demande) {
             <td class="small text-muted">${date}</td>
             <td>
                 <div class="d-flex gap-2 justify-content-end flex-wrap">
-                    <button class="btn btn-sm btn-valider-action btn-accepter-demande" data-demande="${demande.id}"
-                            ${candidats.length ? '' : 'disabled'}>
+                    <button class="btn btn-sm btn-valider-action btn-accepter-demande" data-demande="${demande.id}">
                         <i class="bi bi-check-lg me-1"></i>Valider
                     </button>
                     <button class="btn btn-sm btn-refuser-action btn-refuser-demande" data-demande="${demande.id}">
@@ -102,23 +105,64 @@ async function traiterRattachement(bouton, action) {
     chargerRattachements();
 }
 
+/** Option de la liste des élèves : « Nom — matricule (classe) ». */
+function optionEleve(e) {
+    const classe = e.classe ? ` (${echapperHTML(e.classe)})` : '';
+    return `<option value="${e.id}">${echapperHTML(e.nom_complet)} — ${echapperHTML(e.matricule || 's/ matricule')}${classe}</option>`;
+}
+
+/** Premier message lisible d'une réponse d'erreur de l'API. */
+function messageErreurDemande(resultat) {
+    if (!resultat) return "Le serveur n'a pas répondu. Réessayez.";
+    const valeur = resultat.detail || resultat.error || Object.values(resultat)[0];
+    return (Array.isArray(valeur) ? valeur.join(' ') : valeur) || "Action impossible.";
+}
+
 /** Demande par matricule/nom : accepter avec l'élève choisi, ou refuser. */
 async function traiterDemande(bouton, action) {
-    if (action === 'refuser' && !confirm('Refuser cette demande de rattachement ?')) return;
     const corps = {};
     if (action === 'accepter') {
         const choix = bouton.closest('tr').querySelector('.choix-eleve-demande');
-        if (!choix || !confirm(`Rattacher ce parent à ${choix.selectedOptions[0].text} ?`)) return;
+        if (!choix || !choix.value) {
+            alert("Choisissez d'abord l'élève concerné (recherchez-le par son nom ou son matricule).");
+            return;
+        }
+        if (!confirm(`Rattacher ce parent à ${choix.selectedOptions[0].text} ?`)) return;
         corps.enfant = Number(choix.value);
+    } else if (!confirm('Refuser cette demande de rattachement ?')) {
+        return;
     }
     bouton.disabled = true;
     const resultat = await appelApi(`/auth/demandes-rattachement/${bouton.dataset.demande}/${action}/`, {
         method: 'POST',
         body: JSON.stringify(corps),
     });
-    if (resultat && (resultat.error || resultat.detail)) alert(resultat.error || resultat.detail);
+    // Succès : la demande renvoyée a changé de statut ; sinon on affiche l'erreur du serveur.
+    if (!resultat || !['acceptee', 'refusee'].includes(resultat.statut)) {
+        alert(messageErreurDemande(resultat));
+        bouton.disabled = false;
+        return;
+    }
     chargerRattachements();
 }
+
+// Recherche manuelle d'un élève (300 ms après la dernière frappe) : remplit la liste de choix.
+let delaiRechercheEleve;
+document.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('recherche-eleve-demande')) return;
+    const champ = e.target;
+    clearTimeout(delaiRechercheEleve);
+    delaiRechercheEleve = setTimeout(async () => {
+        const terme = champ.value.trim();
+        if (terme.length < 2) return;
+        const data = await appelApi(`/auth/utilisateurs/?role=eleve&search=${encodeURIComponent(terme)}`);
+        const eleves = (data && (data.results || data)) || [];
+        const liste = champ.closest('td').querySelector('.choix-eleve-demande');
+        liste.innerHTML = Array.isArray(eleves) && eleves.length
+            ? eleves.slice(0, 20).map(optionEleve).join('')
+            : '<option value="">Aucun élève trouvé pour cette recherche</option>';
+    }, 300);
+});
 
 document.addEventListener('click', (e) => {
     const bouton = e.target.closest(

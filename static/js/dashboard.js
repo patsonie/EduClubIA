@@ -326,11 +326,23 @@ async function chargerDashboardProviseur(profil) {
         ? stats.clubs_taux_participation.map(barreParticipationProviseur).join('')
         : '<div class="text-muted small py-3 text-center">Pas encore de données.</div>';
 
+    // Demandes de rattachement parent → enfant à traiter (anciens liens en attente + demandes par matricule/nom).
+    const [liensAttente, demandesAttente] = await Promise.all([
+        appelApi('/auth/parents/demandes_rattachement/'),
+        appelApi('/auth/demandes-rattachement/?statut=en_attente'),
+    ]);
+    const nbRattachements = (Array.isArray(liensAttente) ? liensAttente.length : 0)
+        + (Array.isArray(demandesAttente) ? demandesAttente.length : 0);
+
     document.getElementById('stats-rapides-proviseur').innerHTML = [
         ligneStatRapideProviseur('bi-plus-circle', '#22c55e', stats.nouveaux_clubs_mois, 'Nouveaux clubs ce mois'),
         ligneStatRapideProviseur('bi-check2-square', '#6C5CE7', stats.activites_a_valider, 'Activités à valider'),
         ligneStatRapideProviseur('bi-person-check', '#3b82f6', stats.presences_mois, 'Présences ce mois'),
         ligneStatRapideProviseur('bi-person-x', '#ef4444', stats.absences_mois, 'Absences ce mois'),
+        // Lien direct vers le tableau des rattachements (page « Comptes en attente »).
+        `<a href="/comptes-en-attente/#tableau-rattachements" class="text-decoration-none text-reset">
+            ${ligneStatRapideProviseur('bi-link-45deg', '#f59e0b', nbRattachements, 'Demandes de rattachement parent à valider')}
+         </a>`,
     ].join('');
 
     new Chart(document.getElementById('graphique-repartition-proviseur'), {

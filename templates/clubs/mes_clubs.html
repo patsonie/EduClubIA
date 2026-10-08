@@ -2,7 +2,11 @@
 {% load static %}
 {% block titre %}Mes clubs{% endblock %}
 {% block contenu %}
-<h4 class="fw-bold mb-4">Mes clubs</h4>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h4 class="fw-bold mb-0" id="titre-mes-clubs">Mes clubs</h4>
+    <!-- Lien vers le catalogue des clubs, affiché pour l'élève par mes_clubs.js -->
+    <a href="/clubs/" class="btn btn-sm btn-primaire-app d-none" id="lien-tous-les-clubs"><i class="bi bi-search me-1"></i>Trouver un club</a>
+</div>
 <div class="row g-3" id="conteneur-mes-clubs">
     <div class="col-12 text-center text-muted py-5">Chargement...</div>
 </div>

@@ -35,8 +35,10 @@ function creerCarteActiviteClub(activite) {
 
 // Charge tout le contenu de la page (CLUB_ID est fourni par le gabarit HTML).
 async function chargerDetailClub() {
-    const club = await appelApi(`/clubs/${CLUB_ID}/`);
+    const [club, profil] = await Promise.all([appelApi(`/clubs/${CLUB_ID}/`), appelApi('/auth/profil/')]);
     if (!club) return;
+    gestionnaireDuClub = ['administrateur', 'proviseur'].includes(profil?.role)
+        || (profil?.role === 'encadreur' && club.responsable === profil.id);
 
     document.getElementById('fil-ariane-club').textContent = club.nom;
 
@@ -159,17 +161,22 @@ function messageErreurApi(resultat, defaut) {
     return (Array.isArray(valeur) ? valeur.join(' ') : valeur) || defaut;
 }
 
+// Vrai si l'utilisateur connecté gère ce club (administration, RP ou encadreur du club) :
+// seuls eux voient le bouton « Retirer du club ».
+let gestionnaireDuClub = false;
+
 // Ligne d'un membre dans le tableau.
 function ligneMembre(m) {
+    const bouton = gestionnaireDuClub
+        ? `<button class="btn btn-sm btn-outline-danger btn-retirer-membre" data-eleve="${m.id}" title="Retirer du club">
+               <i class="bi bi-person-dash"></i>
+           </button>`
+        : '';
     return `
         <tr data-eleve="${m.id}">
             <td class="fw-medium">${echapperHTML(m.nom_complet)}</td>
             <td>${echapperHTML(m.classe || '-')}</td>
             <td class="text-muted small">${new Date(m.date_inscription).toLocaleDateString('fr-FR')}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-danger btn-retirer-membre" data-eleve="${m.id}" title="Retirer du club">
-                    <i class="bi bi-person-dash"></i>
-                </button>
-            </td>
+            <td>${bouton}</td>
         </tr>`;
 }

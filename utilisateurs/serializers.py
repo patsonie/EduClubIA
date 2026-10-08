@@ -601,6 +601,19 @@ class DemandeRattachementSerializer(serializers.ModelSerializer):
         if obj.enfant_id:
             e = obj.enfant
             return [{'id': e.id, 'nom_complet': e.nom_complet, 'matricule': e.matricule, 'classe': e.classe}]
+        # Demande par matricule sans correspondance exacte (faute de frappe probable) :
+        # on propose les élèves dont le matricule est très proche de celui saisi.
+        if obj.nom_complet_enfant.startswith('Matricule '):
+            import difflib
+            saisi = obj.nom_complet_enfant[len('Matricule '):].strip().lower()
+            proches = [
+                e for e in Utilisateur.objects.filter(role=Utilisateur.Role.ELEVE, matricule__isnull=False)
+                if difflib.SequenceMatcher(None, saisi, e.matricule.lower()).ratio() >= 0.8
+            ][:5]
+            return [
+                {'id': e.id, 'nom_complet': e.nom_complet, 'matricule': e.matricule, 'classe': e.classe}
+                for e in proches
+            ]
         # Recherche par mots du nom saisi, puis tri des élèves par nombre de mots correspondants.
         mots = [m for m in obj.nom_complet_enfant.split() if len(m) >= 2]
         if not mots:

@@ -633,6 +633,54 @@ class RattachementParMatricule(BaseDonnees):
             self.client.post(self.URL, {'matricule': f'X{i}'}, format='json')
         self.assertEqual(self.client.post(self.URL, {'matricule': 'X9'}, format='json').status_code, 429)
 
+    def test_matricule_mal_tape_propose_l_eleve_proche(self):
+        self.eleve2.matricule = 'CCBR2025-2026'
+        self.eleve2.save()
+        self.auth(self.parent2)
+        self.client.post(self.URL, {'matricule': 'CCRB2025-2026'}, format='json')   # lettres inversées
+        self.auth(self.admin)
+        demande = self.client.get('/api/auth/demandes-rattachement/?statut=en_attente').data[0]
+        self.assertEqual([e['id'] for e in demande['eleves_candidats']], [self.eleve2.id])
+        r = self.client.post(f"/api/auth/demandes-rattachement/{demande['id']}/accepter/",
+                             {'enfant': self.eleve2.id}, format='json')
+        self.assertEqual(r.data['statut'], 'acceptee')
+
+    def test_administrateur_refuse_une_demande_sans_eleve_propose(self):
+        self.auth(self.parent2)
+        self.client.post(self.URL, {'matricule': 'ZZZ999'}, format='json')
+        self.auth(self.admin)
+        demande = self.client.get('/api/auth/demandes-rattachement/?statut=en_attente').data[0]
+        self.assertEqual(demande['eleves_candidats'], [])
+        r = self.client.post(f"/api/auth/demandes-rattachement/{demande['id']}/refuser/", {}, format='json')
+        self.assertEqual((r.status_code, r.data['statut']), (200, 'refusee'))
+        self.assertTrue(self.parent2.notifications.filter(titre="Demande d'association refusée").exists())
+
+    def test_responsable_pedagogique_traite_les_demandes(self):
+        """Parcours complet du RP : liste, recherche manuelle d'un élève, validation et refus."""
+        self.auth(self.parent2)
+        self.client.post(self.URL, {'matricule': 'INCONNU1'}, format='json')
+        self.client.post('/api/auth/demandes-rattachement/', {'nom_complet_enfant': 'Paul Inexistant'}, format='json')
+        self.auth(self.proviseur)
+        demandes = self.client.get('/api/auth/demandes-rattachement/?statut=en_attente').data
+        self.assertEqual(len(demandes), 2)
+        # Recherche manuelle (champ « Rechercher un élève » de la page Comptes en attente).
+        trouves = self.client.get('/api/auth/utilisateurs/', {'role': 'eleve', 'search': 'el2'}).data
+        self.assertIn(self.eleve2.id, [u['id'] for u in trouves])
+        r = self.client.post(f"/api/auth/demandes-rattachement/{demandes[0]['id']}/accepter/",
+                             {'enfant': self.eleve2.id}, format='json')
+        self.assertEqual((r.status_code, r.data['statut']), (200, 'acceptee'))
+        self.assertEqual(list(self.parent2.enfants), [self.eleve2])
+        r = self.client.post(f"/api/auth/demandes-rattachement/{demandes[1]['id']}/refuser/", {}, format='json')
+        self.assertEqual((r.status_code, r.data['statut']), (200, 'refusee'))
+
+    def test_encadreur_ne_traite_pas_les_demandes(self):
+        self.auth(self.parent2)
+        self.client.post(self.URL, {'matricule': 'M2'}, format='json')
+        from utilisateurs.models import DemandeRattachement
+        demande_id = DemandeRattachement.objects.get().id
+        self.auth(self.enc1)
+        self.assertEqual(self.client.post(f'/api/auth/demandes-rattachement/{demande_id}/accepter/', {}, format='json').status_code, 403)
+
     def test_reserve_aux_parents(self):
         self.auth(self.eleve1)
         self.assertEqual(self.client.post(self.URL, {'matricule': 'M2'}, format='json').status_code, 403)
