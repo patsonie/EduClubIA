@@ -684,3 +684,46 @@ class RattachementParMatricule(BaseDonnees):
     def test_reserve_aux_parents(self):
         self.auth(self.eleve1)
         self.assertEqual(self.client.post(self.URL, {'matricule': 'M2'}, format='json').status_code, 403)
+
+
+class AnneeScolaireEtStatutClub(BaseDonnees):
+    """Activation/désactivation de l'année et du club : conditions d'ouverture des inscriptions."""
+
+    def test_admin_et_rp_activent_et_desactivent_l_annee(self):
+        for gestionnaire in (self.admin, self.proviseur):
+            self.auth(gestionnaire)
+            r = self.client.post(f'/api/annees-scolaires/{self.annee.id}/desactiver/')
+            self.assertEqual(r.status_code, 200)
+            self.annee.refresh_from_db()
+            self.assertFalse(self.annee.est_active)
+            self.assertEqual(self.client.post(f'/api/annees-scolaires/{self.annee.id}/activer/').status_code, 200)
+            self.annee.refresh_from_db()
+            self.assertTrue(self.annee.est_active)
+
+    def test_eleve_et_encadreur_ne_gerent_pas_les_annees(self):
+        for user in (self.eleve1, self.enc1):
+            self.auth(user)
+            self.assertEqual(self.client.post(f'/api/annees-scolaires/{self.annee.id}/desactiver/').status_code, 403)
+
+    def test_sans_annee_active_les_inscriptions_sont_fermees(self):
+        self.auth(self.proviseur)
+        self.client.post(f'/api/annees-scolaires/{self.annee.id}/desactiver/')
+        self.auth(self.eleve2)
+        club = self.client.get(f'/api/clubs/{self.club2.id}/').data
+        self.assertIn("Aucune année scolaire", club['inscriptions_fermees_raison'])
+        self.assertEqual(self.client.post('/api/inscriptions/', {'club': self.club2.id}, format='json').status_code, 400)
+
+    def test_rp_active_un_club_en_attente_puis_l_eleve_s_inscrit(self):
+        self.club2.statut = Club.Statut.EN_ATTENTE
+        self.club2.save()
+        self.auth(self.eleve2)
+        self.assertIn("en attente", self.client.get(f'/api/clubs/{self.club2.id}/').data['inscriptions_fermees_raison'])
+        self.auth(self.proviseur)
+        self.assertEqual(self.client.patch(f'/api/clubs/{self.club2.id}/', {'statut': 'actif'}, format='json').status_code, 200)
+        self.auth(self.eleve2)
+        self.assertIsNone(self.client.get(f'/api/clubs/{self.club2.id}/').data['inscriptions_fermees_raison'])
+        self.assertEqual(self.client.post('/api/inscriptions/', {'club': self.club2.id}, format='json').status_code, 201)
+
+    def test_encadreur_ne_change_pas_le_statut_d_un_club(self):
+        self.auth(self.enc2)
+        self.assertEqual(self.client.patch(f'/api/clubs/{self.club2.id}/', {'statut': 'archive'}, format='json').status_code, 403)

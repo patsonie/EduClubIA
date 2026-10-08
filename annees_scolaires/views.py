@@ -47,6 +47,21 @@ class AnneeScolaireViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    # Désactiver l'année active : plus aucune année active, donc les inscriptions aux clubs sont fermées.
+    # Les inscriptions existantes sont conservées (rien n'est archivé).
+    @action(detail=True, methods=['post'])
+    def desactiver(self, request, pk=None):
+        """POST /api/annees-scolaires/{id}/desactiver/"""
+        annee = self.get_object()
+        if not annee.est_active:
+            return Response({"error": "Cette année scolaire n'est pas active."}, status=status.HTTP_400_BAD_REQUEST)
+        annee.est_active = False
+        annee.save(update_fields=['est_active'])
+        return Response(
+            {"message": f"Année scolaire {annee.libelle} désactivée. Les inscriptions aux clubs sont fermées."},
+            status=status.HTTP_200_OK,
+        )
+
     # Suppression impossible si des inscriptions y sont rattachées (réponse 409).
     def destroy(self, request, *args, **kwargs):
         try:

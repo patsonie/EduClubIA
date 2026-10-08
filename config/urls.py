@@ -14,6 +14,7 @@ from .views_pages import (
     PageParentClubsView, PageParentActivitesView, PageParentPresencesView, PageParentCalendrierView,
     PageInscriptionView, PageComptesEnAttenteView, PageUtilisateursView, PageRapportsView, PageParametresView, 
     PageReinitialiserMotDePasseView, PageMotDePasseOublieView, PageValidationCompteView,
+    PageAnneesScolairesView,
 )
 from recommandations.views import ReentrainementIAView, HistoriqueEntrainementView
 
@@ -58,6 +59,7 @@ urlpatterns = [
     path('comptes-en-attente/', PageComptesEnAttenteView.as_view(), name='page_comptes_en_attente'),
     path('utilisateurs/', PageUtilisateursView.as_view(), name='page_utilisateurs'),
     path('rapports/', PageRapportsView.as_view(), name='page_rapports'),
+    path('annees-scolaires/', PageAnneesScolairesView.as_view(), name='page_annees_scolaires'),
     path('mot-de-passe-oublie/', PageMotDePasseOublieView.as_view(), name='page_mot_de_passe_oublie'),
     path('reinitialiser-mot-de-passe/<str:uidb64>/<str:token>/', PageReinitialiserMotDePasseView.as_view(), name='page_reinitialiser_mot_de_passe'),
     # --- API de l'intelligence artificielle (administrateur) ---

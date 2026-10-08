@@ -48,7 +48,7 @@ async function chargerDetailClub() {
             <div>
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <h4 class="fw-bold mb-0">${echapperHTML(club.nom)}</h4>
-                    <span class="badge bg-success-subtle text-success">${echapperHTML(club.statut)}</span>
+                    <span class="badge ${club.statut === 'actif' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'}">${echapperHTML(LIBELLES_STATUT_CLUB[club.statut] || club.statut)}</span>
                 </div>
                 <span class="badge bg-primary-subtle text-primary mb-2">${echapperHTML(club.categorie)}</span>
                 <p class="text-muted mb-1" style="max-width: 600px;">${echapperHTML(club.description)}</p>
@@ -58,10 +58,12 @@ async function chargerDetailClub() {
                 <div class="fw-bold" style="font-size: 1.4rem; color: var(--couleur-primaire);">${club.nombre_membres_actuels} / ${club.nombre_max_membres}</div>
                 <div class="small text-muted">Membres</div>
                 <div id="zone-inscription-eleve" class="mt-2"></div>
+                <div id="zone-statut-club" class="mt-2"></div>
             </div>
         </div>`;
 
     afficherBoutonInscription(club);
+    afficherChoixStatut(club, profil);
 
     // Liste des membres (visible par les gestionnaires et les élèves membres).
     const membres = await appelApi(`/clubs/${CLUB_ID}/membres/`);
@@ -118,11 +120,13 @@ async function afficherBoutonInscription(club) {
 
     const inscription = club.mon_inscription;
     if (!inscription) {
-        const complet = club.places_disponibles <= 0 || club.statut !== 'actif';
+        // Le serveur indique pourquoi les inscriptions sont fermées (club non actif, pas d'année active, complet).
+        const raison = club.inscriptions_fermees_raison;
         zone.innerHTML = `
-            <button class="btn btn-sm btn-primaire-app" id="btn-inscription-club" ${complet ? 'disabled' : ''}>
-                <i class="bi bi-person-plus me-1"></i>${complet ? 'Inscriptions fermées' : "S'inscrire"}
-            </button>`;
+            <button class="btn btn-sm btn-primaire-app" id="btn-inscription-club" ${raison ? 'disabled' : ''}>
+                <i class="bi bi-person-plus me-1"></i>${raison ? 'Inscriptions fermées' : "S'inscrire"}
+            </button>
+            ${raison ? `<div class="small text-muted mt-1" style="max-width: 260px;">${echapperHTML(raison)}</div>` : ''}`;
         document.getElementById('btn-inscription-club')?.addEventListener('click', async () => {
             const resultat = await appelApi('/inscriptions/', {
                 method: 'POST',
@@ -159,6 +163,32 @@ function messageErreurApi(resultat, defaut) {
     if (!resultat) return defaut;
     const valeur = resultat.detail || resultat.error || Object.values(resultat)[0];
     return (Array.isArray(valeur) ? valeur.join(' ') : valeur) || defaut;
+}
+
+// ---------- Administration / RP : changer le statut du club ----------
+
+const LIBELLES_STATUT_CLUB = {
+    actif: 'Actif', inactif: 'Inactif', en_attente: 'En attente de validation', archive: 'Archivé',
+};
+
+/** Liste de choix du statut, visible seulement par l'administrateur et le responsable pédagogique. */
+function afficherChoixStatut(club, profil) {
+    const zone = document.getElementById('zone-statut-club');
+    if (!zone || !['administrateur', 'proviseur'].includes(profil?.role)) return;
+    zone.innerHTML = `
+        <label class="small text-muted d-block" for="choix-statut-club">Statut du club</label>
+        <select class="form-select form-select-sm ms-auto" id="choix-statut-club" style="max-width: 220px;">
+            ${Object.entries(LIBELLES_STATUT_CLUB).map(([valeur, libelle]) =>
+                `<option value="${valeur}" ${valeur === club.statut ? 'selected' : ''}>${libelle}</option>`).join('')}
+        </select>`;
+    document.getElementById('choix-statut-club').addEventListener('change', async (e) => {
+        const resultat = await appelApi(`/clubs/${club.id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ statut: e.target.value }),
+        });
+        if (resultat && resultat.id) chargerDetailClub();
+        else alert(messageErreurApi(resultat, "Changement de statut impossible."));
+    });
 }
 
 // Vrai si l'utilisateur connecté gère ce club (administration, RP ou encadreur du club) :

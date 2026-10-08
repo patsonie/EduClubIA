@@ -11,6 +11,7 @@ class ClubSerializer(serializers.ModelSerializer):
     nombre_membres_actuels = serializers.ReadOnlyField()
     places_disponibles = serializers.ReadOnlyField()
     mon_inscription = serializers.SerializerMethodField()
+    inscriptions_fermees_raison = serializers.SerializerMethodField()
 
     class Meta:
         model = Club
@@ -19,6 +20,7 @@ class ClubSerializer(serializers.ModelSerializer):
             'responsable', 'responsable_nom', 'date_creation',
             'nombre_max_membres', 'logo', 'statut',
             'nombre_membres_actuels', 'places_disponibles', 'mon_inscription',
+            'inscriptions_fermees_raison',
         ]
         read_only_fields = ['id', 'date_creation']
 
@@ -34,6 +36,17 @@ class ClubSerializer(serializers.ModelSerializer):
             statut__in=[Inscription.Statut.EN_ATTENTE, Inscription.Statut.VALIDEE],
         ).order_by('-date_inscription').first()
         return {'id': inscription.id, 'statut': inscription.statut} if inscription else None
+
+    # Explique à l'élève pourquoi il ne peut pas s'inscrire (None = inscriptions ouvertes).
+    def get_inscriptions_fermees_raison(self, obj):
+        from annees_scolaires.models import AnneeScolaire
+        if obj.statut != Club.Statut.ACTIF:
+            return f"Ce club est {obj.get_statut_display().lower()} : il n'accepte pas encore d'inscriptions."
+        if not AnneeScolaire.objects.filter(est_active=True).exists():
+            return "Aucune année scolaire n'est active : les inscriptions sont fermées."
+        if obj.places_disponibles <= 0:
+            return "Ce club est complet."
+        return None
 
     # Contrôle à l'affectation d'un responsable par le gestionnaire.
     def validate_responsable(self, value):

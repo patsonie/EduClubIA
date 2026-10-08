@@ -72,6 +72,15 @@
                             <label class="form-label small fw-medium">Nb. max membres</label>
                             <input type="number" class="form-control" name="nombre_max_membres" value="30" required>
                         </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-medium">Statut</label>
+                            <!-- Seul un club « actif » accepte les inscriptions des élèves. -->
+                            <select class="form-select" name="statut">
+                                <option value="actif" selected>Actif (inscriptions ouvertes)</option>
+                                <option value="en_attente">En attente de validation</option>
+                                <option value="inactif">Inactif</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

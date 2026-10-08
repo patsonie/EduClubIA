@@ -113,5 +113,10 @@ class PageReinitialiserMotDePasseView(TemplateView):
         return context
     
 # Validation du compte responsable pédagogique par code.
+# Gestion des années scolaires (administrateur et RP ; l'API vérifie les droits).
+class PageAnneesScolairesView(TemplateView):
+    template_name = 'base/annees_scolaires.html'
+
+
 class PageValidationCompteView(TemplateView):
     template_name = 'base/validation_compte.html'

@@ -29,6 +29,7 @@ function creerCarteClub(club) {
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="small ${placesRestantes <= 0 ? 'text-danger' : 'text-success'}">
                         ${club.nombre_membres_actuels} / ${club.nombre_max_membres} membres
+                        ${club.statut !== 'actif' ? '<span class="badge bg-warning-subtle text-warning ms-1">inscriptions fermées</span>' : ''}
                     </span>
                     <a href="/clubs/${club.id}/" class="btn btn-sm btn-outline-secondary">Voir</a>
                 </div>
