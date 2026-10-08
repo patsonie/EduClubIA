@@ -50,8 +50,11 @@ async function chargerDetailClub() {
             <div class="text-end">
                 <div class="fw-bold" style="font-size: 1.4rem; color: var(--couleur-primaire);">${club.nombre_membres_actuels} / ${club.nombre_max_membres}</div>
                 <div class="small text-muted">Membres</div>
+                <div id="zone-inscription-eleve" class="mt-2"></div>
             </div>
         </div>`;
+
+    afficherBoutonInscription(club);
 
     const membres = await appelApi(`/clubs/${CLUB_ID}/membres/`);
     const tableauMembres = document.getElementById('tableau-membres');
@@ -90,6 +93,62 @@ async function chargerDetailClub() {
 }
 
 document.addEventListener('DOMContentLoaded', chargerDetailClub);
+
+// ---------- Élève : s'inscrire / se désinscrire ----------
+
+/**
+ * `club.mon_inscription` n'est renseigné que pour un élève connecté :
+ * null → bouton « S'inscrire » ; sinon bouton d'annulation (demande en attente ou membre).
+ */
+async function afficherBoutonInscription(club) {
+    const zone = document.getElementById('zone-inscription-eleve');
+    const profil = await appelApi('/auth/profil/');
+    if (!zone || profil?.role !== 'eleve') return;
+
+    const inscription = club.mon_inscription;
+    if (!inscription) {
+        const complet = club.places_disponibles <= 0 || club.statut !== 'actif';
+        zone.innerHTML = `
+            <button class="btn btn-sm btn-primaire-app" id="btn-inscription-club" ${complet ? 'disabled' : ''}>
+                <i class="bi bi-person-plus me-1"></i>${complet ? 'Inscriptions fermées' : "S'inscrire"}
+            </button>`;
+        document.getElementById('btn-inscription-club')?.addEventListener('click', async () => {
+            const resultat = await appelApi('/inscriptions/', {
+                method: 'POST',
+                body: JSON.stringify({ club: club.id }),
+            });
+            if (resultat && resultat.id) {
+                alert("Demande envoyée : l'encadreur du club doit la valider.");
+                chargerDetailClub();
+            } else {
+                alert(messageErreurApi(resultat, "Inscription impossible."));
+            }
+        });
+        return;
+    }
+
+    const enAttente = inscription.statut === 'en_attente';
+    zone.innerHTML = `
+        <div class="small mb-1 ${enAttente ? 'text-warning' : 'text-success'}">
+            ${enAttente ? 'Demande en attente de validation' : 'Vous êtes membre'}
+        </div>
+        <button class="btn btn-sm btn-outline-danger" id="btn-desinscription-club">
+            <i class="bi bi-person-dash me-1"></i>${enAttente ? 'Annuler ma demande' : 'Se désinscrire'}
+        </button>`;
+    document.getElementById('btn-desinscription-club').addEventListener('click', async () => {
+        if (!confirm(enAttente ? 'Annuler votre demande ?' : 'Quitter ce club ?')) return;
+        const resultat = await appelApi(`/inscriptions/${inscription.id}/se_desinscrire/`, { method: 'POST' });
+        if (resultat && resultat.id) chargerDetailClub();
+        else alert(messageErreurApi(resultat, "Désinscription impossible."));
+    });
+}
+
+/** Premier message lisible d'une réponse d'erreur DRF ({champ: [..]}, {detail: ..}). */
+function messageErreurApi(resultat, defaut) {
+    if (!resultat) return defaut;
+    const valeur = resultat.detail || resultat.error || Object.values(resultat)[0];
+    return (Array.isArray(valeur) ? valeur.join(' ') : valeur) || defaut;
+}
 
 function ligneMembre(m) {
     return `

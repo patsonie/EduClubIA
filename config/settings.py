@@ -1,9 +1,14 @@
+# === Réglages généraux du projet Django ===
+# Les valeurs sensibles (clé secrète, mots de passe, base de données) sont lues dans le
+# fichier .env (en local) ou dans les variables d'environnement (Render), jamais écrites ici.
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
 
+# Dossier racine du projet.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Clé secrète, mode debug et noms de domaine autorisés.
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = [host.strip() for host in config(
@@ -21,6 +26,7 @@ FRONTEND_BASE_URL = config(
     default=f"https://{RENDER_EXTERNAL_HOSTNAME}" if RENDER_EXTERNAL_HOSTNAME else "http://127.0.0.1:8000",
 )
 
+# Applications installées : Django, outils tiers (API REST, JWT, CORS, WebSocket) et apps du projet.
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',
@@ -51,6 +57,7 @@ INSTALLED_APPS = [
     'annees_scolaires',
 ]
 
+# Couches traversées par chaque requête (sécurité, fichiers statiques, sessions, CORS, CSRF...).
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -63,8 +70,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Fichier principal des adresses (URL) du site.
 ROOT_URLCONF = 'config.urls'
 
+# Gabarits HTML : dossier templates/ à la racine.
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -83,6 +92,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# --- Base de données ---
+# DATABASE_URL (Render : PostgreSQL) si défini, sinon MySQL local construit avec DB_USER, DB_PASSWORD...
 import dj_database_url
 
 DATABASE_URL_LOCAL = (
@@ -103,13 +114,17 @@ if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
     DATABASES['default'].setdefault('OPTIONS', {})
     DATABASES['default']['OPTIONS']['charset'] = 'utf8mb4'
     DATABASES['default']['OPTIONS']['init_command'] = 'SET default_storage_engine=INNODB'
+# Modèle utilisateur personnalisé (connexion par email, rôles).
 AUTH_USER_MODEL = 'utilisateurs.Utilisateur'
 
+# Règles de robustesse des mots de passe.
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# --- API REST ---
+# Authentification JWT, connexion obligatoire par défaut, pagination optionnelle et limites de fréquence.
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'utilisateurs.authentication.JWTAuthenticationStatutValide',
@@ -142,6 +157,7 @@ PASSWORD_RESET_TIMEOUT = 60 * 60
 # Chemin de l'admin Django configurable (évite le scan automatique de /admin/).
 ADMIN_URL = config('ADMIN_URL', default='admin/')
 
+# Cache (compteurs anti brute-force) : Redis si REDIS_URL est défini, sinon mémoire locale.
 # Les compteurs anti brute-force doivent être partagés entre processus : Redis si disponible.
 if config('REDIS_URL', default=''):
     CACHES = {
@@ -156,6 +172,7 @@ import sys
 if 'test' in sys.argv:
     PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
+# --- CORS (appels depuis un autre domaine) ---
 # L'interface est servie depuis le même domaine que l'API : CORS n'est donc pas
 # nécessaire par défaut. Les origines externes doivent être déclarées explicitement.
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in config(
@@ -165,11 +182,13 @@ if RENDER_EXTERNAL_HOSTNAME:
     CORS_ALLOWED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 CORS_ALLOW_CREDENTIALS = False
 
+# Langue, fuseau horaire (Douala) et gestion des dates.
 LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'Africa/Douala'
 USE_I18N = True
 USE_TZ = True
 
+# --- Fichiers statiques (CSS, JS, images) et fichiers envoyés (media) ---
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -196,6 +215,7 @@ if AWS_STORAGE_BUCKET_NAME:
     STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
 WHITENOISE_MANIFEST_STRICT = False
 
+# --- En-têtes de sécurité HTTP ---
 # En-têtes applicables dans tous les environnements. Les options HTTPS ne sont
 # activées qu'en production afin de ne pas casser le serveur de développement.
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -215,8 +235,10 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
+# Type des identifiants automatiques des tables.
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# --- Jetons JWT : durée de validité, rotation et révocation ---
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -230,6 +252,7 @@ SIMPLE_JWT = {
 }
 
 
+# --- WebSocket (messagerie en temps réel) ---
 ASGI_APPLICATION = 'config.asgi.application'
 
 # Redis obligatoire dès qu'il y a plusieurs instances/processus ; InMemory suffit pour 1 processus (dev).
@@ -248,6 +271,7 @@ else:
         },
     }
 
+# --- Emails ---
 # Configuration email : SMTP dès qu'un EMAIL_HOST est défini, sinon les emails
 # s'affichent dans le terminal/les logs (mode développement, rien n'est envoyé).
 
@@ -264,5 +288,6 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@educlubia.cm')
 
+# Dossier où sont enregistrés les modèles IA entraînés (créé s'il n'existe pas).
 IA_MODELES_DIR = Path(config('IA_MODELES_DIR', default=str(BASE_DIR / 'ia_modeles')))
 IA_MODELES_DIR.mkdir(parents=True, exist_ok=True)

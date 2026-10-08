@@ -1,3 +1,5 @@
+# === Table des adresses du site ===
+# Les adresses /api/... renvoient les données (JSON) ; les autres affichent les pages HTML.
 from django.contrib import admin
 from django.urls import path, re_path, include
 from django.conf import settings
@@ -16,10 +18,12 @@ from .views_pages import (
 from recommandations.views import ReentrainementIAView, HistoriqueEntrainementView
 
 
+# Page de connexion, tableau de bord et interface d'administration Django.
 urlpatterns = [
     path('connexion/', PageConnexionView.as_view(), name='page_connexion'),
     path('', PageDashboardView.as_view(), name='dashboard'),
     path(settings.ADMIN_URL, admin.site.urls),
+    # --- API : chaque application déclare ses propres adresses dans son fichier urls.py ---
     path('api/auth/', include('utilisateurs.urls')),
     path('api/clubs/', include('clubs.urls')),
     path('api/activites/', include('activites.urls')),
@@ -30,6 +34,7 @@ urlpatterns = [
     path('api/predictions/', include('analytics.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/messagerie/', include('messagerie.urls')),
+    # --- Pages HTML (le JavaScript de chaque page appelle ensuite l'API) ---
     path('parent/enfants/', PageMesEnfantsView.as_view(), name='page_mes_enfants'),
     path('clubs/', PageClubsView.as_view(), name='page_clubs'),
     path('clubs/<int:club_id>/', PageDetailClubView.as_view(), name='page_detail_club'),
@@ -55,6 +60,7 @@ urlpatterns = [
     path('rapports/', PageRapportsView.as_view(), name='page_rapports'),
     path('mot-de-passe-oublie/', PageMotDePasseOublieView.as_view(), name='page_mot_de_passe_oublie'),
     path('reinitialiser-mot-de-passe/<str:uidb64>/<str:token>/', PageReinitialiserMotDePasseView.as_view(), name='page_reinitialiser_mot_de_passe'),
+    # --- API de l'intelligence artificielle (administrateur) ---
     path('api/ia/reentrainement/', ReentrainementIAView.as_view(), name='reentrainement_ia'),
     path('api/ia/historique-entrainement/', HistoriqueEntrainementView.as_view(), name='historique_entrainement'),
     path('validation-compte/', PageValidationCompteView.as_view(), name='page_validation_compte'),

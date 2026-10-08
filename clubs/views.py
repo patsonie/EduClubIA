@@ -1,3 +1,4 @@
+# Imports : vues DRF, modèle et serializers du club, permission « lecture pour tous, écriture gestionnaires ».
 from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Club
@@ -11,12 +12,14 @@ from django.db.models import Count, Q
 from utilisateurs.perimetre import peut_gerer_club
 
 
+# === API des clubs : /api/clubs/ ===
 class ClubViewSet(viewsets.ModelViewSet):
     """
     ViewSet complet pour les clubs : list, retrieve, create, update, destroy.
     Recherche : ?search=robotique
     Filtre : ?categorie=scientifique&statut=actif
     """
+    # Chaque club est chargé avec son responsable et son nombre de membres validés (une seule requête).
     queryset = Club.objects.select_related('responsable').annotate(
         membres_annotes=Count('inscriptions', filter=Q(inscriptions__statut='validee'))
     )
@@ -26,11 +29,13 @@ class ClubViewSet(viewsets.ModelViewSet):
     search_fields = ['nom', 'description', 'objectifs']
     ordering_fields = ['nom', 'date_creation', 'nombre_max_membres']
 
+    # Liste → serializer allégé ; détail/création/modification → serializer complet.
     def get_serializer_class(self):
         if self.action == 'list':
             return ClubListeSerializer
         return ClubSerializer
     
+    # Membres du club : visible par les gestionnaires du club et par les élèves membres.
     @action(detail=True, methods=['get'])
     def membres(self, request, pk=None):
         """GET /api/clubs/{id}/membres/ — liste des élèves inscrits validés dans ce club."""
@@ -57,6 +62,7 @@ class ClubViewSet(viewsets.ModelViewSet):
         ]
         return Response(membres, status=status.HTTP_200_OK)
 
+    # Statistiques du club (activités, taux de présence) pour l'onglet « Statistiques ».
     @action(detail=True, methods=['get'])
     def statistiques(self, request, pk=None):
         """GET /api/clubs/{id}/statistiques/ — statistiques agrégées du club."""
@@ -78,6 +84,7 @@ class ClubViewSet(viewsets.ModelViewSet):
             "nombre_membres": club.nombre_membres_actuels,
         }, status=status.HTTP_200_OK)
 
+    # Retirer un élève du club : l'inscription passe à « annulée » et l'historique est conservé.
     @action(detail=True, methods=['post'])
     def retirer_membre(self, request, pk=None):
         """POST /api/clubs/{id}/retirer_membre/  body: {"eleve_id": <id>}"""

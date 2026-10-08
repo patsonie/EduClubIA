@@ -8,6 +8,8 @@ from django.db import transaction
 
 from .models import MatriculeOfficiel
 
+# Message volontairement identique pour « matricule inconnu » et « mauvaise identité »
+# (ne révèle pas si un matricule existe).
 MESSAGE_NON_RECONNU = (
     "Ce matricule et cette identité ne correspondent à aucune entrée de la liste officielle "
     "de l'établissement. Vérifiez la saisie ou contactez l'administration."
@@ -26,6 +28,7 @@ def _compatibles(a, b):
     return bool(a) and bool(b) and (a <= b or b <= a)
 
 
+# Compare nom/prénom saisis et officiels, en tolérant accents, casse et inversion nom/prénom.
 def identite_correspond(entree, nom, prenom):
     n, p = _jetons(nom), _jetons(prenom)
     en, ep = _jetons(entree.nom), _jetons(entree.prenom)
@@ -58,6 +61,7 @@ def importer_csv(contenu, role):
     Colonnes : matricule, nom, prenom, classe (facultative) ; séparateur « , » ou « ; ».
     Retourne {"crees", "mis_a_jour", "erreurs": [...]}.
     """
+    # Lecture du fichier : encodage UTF-8 (avec ou sans BOM), détection automatique du séparateur.
     texte = contenu.decode('utf-8-sig') if isinstance(contenu, bytes) else contenu
     try:
         dialecte = csv.Sniffer().sniff(texte[:2048], delimiters=',;\t')
@@ -66,6 +70,7 @@ def importer_csv(contenu, role):
     lecteur = csv.DictReader(io.StringIO(texte), dialect=dialecte)
     if not lecteur.fieldnames:
         raise ValueError("Fichier vide.")
+    # Vérifie la présence des colonnes obligatoires (insensible à la casse).
     colonnes = {(c or '').strip().lower(): c for c in lecteur.fieldnames}
     for requise in ('matricule', 'nom', 'prenom'):
         if requise not in colonnes:
@@ -74,6 +79,7 @@ def importer_csv(contenu, role):
     crees = mis_a_jour = 0
     erreurs = []
     vus = set()
+    # Tout l'import est fait dans une transaction : en cas d'erreur grave, rien n'est enregistré.
     with transaction.atomic():
         for numero, ligne in enumerate(lecteur, start=2):
             matricule = (ligne.get(colonnes['matricule']) or '').strip()
@@ -81,6 +87,7 @@ def importer_csv(contenu, role):
             prenom = (ligne.get(colonnes['prenom']) or '').strip()
             classe = (ligne.get(colonnes.get('classe', '')) or '').strip() if 'classe' in colonnes else ''
 
+            # Contrôles ligne par ligne : les lignes invalides sont signalées et ignorées.
             if not (matricule and nom and prenom):
                 erreurs.append(f"Ligne {numero} : matricule, nom et prénom sont obligatoires.")
                 continue
@@ -92,6 +99,7 @@ def importer_csv(contenu, role):
                 continue
             vus.add(matricule.lower())
 
+            # Matricule déjà connu → mise à jour ; sinon → création.
             entree = MatriculeOfficiel.objects.filter(matricule__iexact=matricule).first()
             if entree:
                 entree.role, entree.nom, entree.prenom, entree.classe = role, nom, prenom, classe or None

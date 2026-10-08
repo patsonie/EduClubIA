@@ -15,11 +15,13 @@ class SalonDiscussion(models.Model):
 
     class TypeSalon(models.TextChoices):
         CLUB = 'club', 'Club'
+        # Les trois types de salon.
         ACTIVITE = 'activite', 'Activité'
         PRIVE = 'prive', 'Conversation privée'
 
     type_salon = models.CharField(max_length=10, choices=TypeSalon.choices, default=TypeSalon.CLUB)
     club = models.OneToOneField(
+        # Un salon est lié soit à un club, soit à une activité, soit à des participants (conversation privée).
         Club, on_delete=models.CASCADE, related_name='salon', blank=True, null=True
     )
     activite = models.OneToOneField(
@@ -37,6 +39,7 @@ class SalonDiscussion(models.Model):
 
     def __str__(self):
         if self.type_salon == self.TypeSalon.CLUB and self.club:
+            # Nom technique du salon (admin Django).
             return f"Salon du club {self.club.nom}"
         if self.type_salon == self.TypeSalon.ACTIVITE and self.activite:
             return f"Salon de l'activité {self.activite.titre}"
@@ -44,6 +47,7 @@ class SalonDiscussion(models.Model):
 
     def clean(self):
         from django.core.exceptions import ValidationError
+        # Contrôle de cohérence : un salon « club » doit avoir un club, un salon « activité » une activité.
         if self.type_salon == self.TypeSalon.CLUB and not self.club:
             raise ValidationError("Un salon de type 'club' doit être lié à un club.")
         if self.type_salon == self.TypeSalon.ACTIVITE and not self.activite:
@@ -51,6 +55,7 @@ class SalonDiscussion(models.Model):
 
     @property
     def nom_affiche(self):
+        # Nom affiché dans la messagerie (nom du club, de l'activité ou des participants).
         if self.club:
             return self.club.nom
         if self.activite:
@@ -61,6 +66,7 @@ class SalonDiscussion(models.Model):
 
 class Message(models.Model):
     """Message envoyé dans un salon de discussion, avec pièce jointe optionnelle."""
+    # === Message d'un salon ===
 
     salon = models.ForeignKey(SalonDiscussion, on_delete=models.CASCADE, related_name='messages')
     expediteur = models.ForeignKey(
@@ -72,6 +78,7 @@ class Message(models.Model):
         validators=[valider_fichier_message],
     )
     date_envoi = models.DateTimeField(auto_now_add=True)
+    # Texte du message et pièce jointe éventuelle (téléchargée via une vue protégée).
 
     class Meta:
         verbose_name = "Message"

@@ -1,3 +1,4 @@
+# Configuration de l'interface d'administration Django (/admin/) pour les comptes.
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import Utilisateur, JournalActivite, RelationParentEleve
@@ -8,6 +9,7 @@ from .models import (
 )
 
 
+# Fiche « Utilisateur » dans l'admin : colonnes de la liste, filtres, recherche.
 class UtilisateurAdmin(UserAdmin):
     model = Utilisateur
     list_display = ('email', 'nom', 'prenom', 'role', 'is_active', 'is_staff')
@@ -15,6 +17,7 @@ class UtilisateurAdmin(UserAdmin):
     ordering = ('email',)
     search_fields = ('email', 'nom', 'prenom', 'profession')
 
+    # Regroupement des champs sur la page de modification d'un compte.
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Informations personnelles', {'fields': (
@@ -24,6 +27,7 @@ class UtilisateurAdmin(UserAdmin):
         ('Rôle et permissions', {'fields': ('role', 'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Dates importantes', {'fields': ('last_login', 'date_joined')}),
     )
+    # Champs demandés lors de la création d'un compte depuis l'admin.
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
@@ -34,6 +38,7 @@ class UtilisateurAdmin(UserAdmin):
     filter_horizontal = ('groups', 'user_permissions', 'interets')
 
 
+# Tableau des enfants affiché directement dans la fiche d'un parent.
 class RelationParentEleveInline(admin.TabularInline):
     """Permet de gérer les enfants liés directement depuis la fiche admin d'un parent."""
     model = RelationParentEleve
@@ -42,6 +47,7 @@ class RelationParentEleveInline(admin.TabularInline):
     autocomplete_fields = ['enfant']
 
 
+# Liste des liens parent ↔ élève dans l'admin.
 @admin.register(RelationParentEleve)
 class RelationParentEleveAdmin(admin.ModelAdmin):
     list_display = ('parent', 'enfant', 'date_creation', 'cree_par')
@@ -50,9 +56,11 @@ class RelationParentEleveAdmin(admin.ModelAdmin):
     autocomplete_fields = ['parent', 'enfant', 'cree_par']
 
 
+# Enregistrement des modèles dans l'admin.
 admin.site.register(Utilisateur, UtilisateurAdmin)
 admin.site.register(JournalActivite)
 
+# Codes d'invitation : l'état « utilisé » n'est pas modifiable à la main.
 @admin.register(CodeInvitation)
 class CodeInvitationAdmin(admin.ModelAdmin):
     list_display = ('code', 'role_cible', 'utilise', 'utilise_par', 'date_creation')
@@ -60,12 +68,14 @@ class CodeInvitationAdmin(admin.ModelAdmin):
     readonly_fields = ('utilise', 'utilise_par', 'date_utilisation')
 
 
+# Catégories de centres d'intérêt (ordre d'affichage modifiable).
 @admin.register(CategorieInteret)
 class CategorieInteretAdmin(admin.ModelAdmin):
     list_display = ('nom', 'ordre')
     search_fields = ('nom',)
 
 
+# Centres d'intérêt : activation/désactivation en masse et nombre d'élèves intéressés.
 @admin.register(CentreInteret)
 class CentreInteretAdmin(admin.ModelAdmin):
     list_display = ('nom', 'categorie', 'categorie_club', 'actif', 'nombre_eleves')
@@ -75,6 +85,7 @@ class CentreInteretAdmin(admin.ModelAdmin):
     readonly_fields = ('date_creation', 'date_modification', 'liste_eleves')
     actions = ['desactiver', 'activer']
 
+    # Ajoute le nombre d'élèves à chaque ligne en une seule requête.
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_nb_eleves=Count('eleves'))
 
@@ -87,6 +98,7 @@ class CentreInteretAdmin(admin.ModelAdmin):
         noms = [e.nom_complet for e in obj.eleves.all()[:50]]
         return ', '.join(noms) or '—'
 
+    # Actions groupées proposées dans la liste de l'admin.
     @admin.action(description="Désactiver les centres sélectionnés")
     def desactiver(self, request, queryset):
         queryset.update(actif=False)
@@ -96,6 +108,7 @@ class CentreInteretAdmin(admin.ModelAdmin):
         queryset.update(actif=True)
 
 
+# Liste officielle des matricules dans l'admin.
 @admin.register(MatriculeOfficiel)
 class MatriculeOfficielAdmin(admin.ModelAdmin):
     list_display = ('matricule', 'role', 'nom', 'prenom', 'classe')

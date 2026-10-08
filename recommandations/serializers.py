@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Recommandation, HistoriqueEntrainement
 
 
+# Recommandation envoyée au navigateur (avec nom, catégorie et logo du club).
 class RecommandationSerializer(serializers.ModelSerializer):
     club_nom = serializers.CharField(source='club.nom', read_only=True)
     club_categorie = serializers.CharField(source='club.categorie', read_only=True)
@@ -15,6 +16,7 @@ class RecommandationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
         
+# Ligne d'historique d'entraînement IA (page d'administration de l'IA).
 class HistoriqueEntrainementSerializer(serializers.ModelSerializer):
     declenche_par_nom = serializers.CharField(source='declenche_par.nom_complet', read_only=True)
 

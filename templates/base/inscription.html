@@ -367,8 +367,12 @@
                                 <input type="text" class="form-control" name="domaine_competence" placeholder="Ex: Sport, Informatique...">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-medium">Club(s) à encadrer</label>
-                                <input type="text" class="form-control" name="club_souhaite">
+                                <label class="form-label small fw-medium">Club à encadrer *</label>
+                                <!-- Rempli par inscription.js avec les clubs qui n'ont pas encore d'encadreur -->
+                                <select class="form-select" name="club" id="select-club-encadreur">
+                                    <option value="">Chargement des clubs...</option>
+                                </select>
+                                <div class="form-text">Un seul club. Vous pourrez le changer plus tard depuis votre profil.</div>
                             </div>
                             <div class="col-12" id="ligne-justificatif-encadreur">
                                 <label class="form-label small fw-medium">Justificatif professionnel</label>

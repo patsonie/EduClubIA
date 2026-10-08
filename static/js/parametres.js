@@ -49,6 +49,16 @@ async function chargerProfil() {
     });
     section.classList.toggle('d-none', !section.querySelector('.col-md-6:not(.d-none)'));
 
+    if (profil.role === 'encadreur') {
+        // Seul endroit où l'encadreur peut changer de club (un club n'a qu'un encadreur).
+        const liste = document.getElementById('champ-club-encadre');
+        const clubs = await appelApi('/auth/clubs-disponibles/');
+        liste.innerHTML = profil.club_encadre_details ? '' : '<option value="">Aucun club</option>';
+        (Array.isArray(clubs) ? clubs : []).forEach(c => liste.add(new Option(c.nom, c.id)));
+        liste.value = profil.club_encadre_details ? String(profil.club_encadre_details.id) : '';
+        liste.dataset.initial = liste.value;
+    }
+
     if (profil.role === 'eleve') {
         document.getElementById('bloc-preferences-eleve').classList.remove('d-none');
         const centres = await appelApi('/auth/interets/');
@@ -100,6 +110,12 @@ document.getElementById('formulaire-profil').addEventListener('submit', async (e
         return;
     }
     if (donnees.date_naissance === '') donnees.date_naissance = null;
+    // Club de l'encadreur : envoyé seulement s'il a changé.
+    const listeClub = document.getElementById('champ-club-encadre');
+    if (!listeClub.closest('.d-none') && listeClub.value && listeClub.value !== listeClub.dataset.initial) {
+        if (!confirm('Changer de club libère votre club actuel pour un autre encadreur. Continuer ?')) return;
+        donnees.club_encadre = Number(listeClub.value);
+    }
     if (!document.getElementById('bloc-preferences-eleve').classList.contains('d-none')) {
         donnees.interets = lireInteretsSelectionnes(document.getElementById('conteneur-interets'));
     }
@@ -146,6 +162,7 @@ document.getElementById('formulaire-profil').addEventListener('submit', async (e
         document.getElementById('entete-nom').textContent = resultat.nom_complet || '';
         const nomHeader = document.getElementById('nom-utilisateur-connecte');
         if (nomHeader) nomHeader.textContent = resultat.nom_complet || '';
+        if (resultat.club_encadre_details) listeClub.dataset.initial = String(resultat.club_encadre_details.id);
         alerteSucces.classList.remove('d-none');
         setTimeout(() => alerteSucces.classList.add('d-none'), 3000);
     } else if (resultat) {

@@ -7,11 +7,13 @@ from activites.models import Activite
 class RisqueDesengagement(models.Model):
     """Score de risque qu'un élève quitte son club, calculé à partir de son comportement."""
 
+    # Niveaux de risque affichés (couleurs dans l'interface).
     class NiveauRisque(models.TextChoices):
         FAIBLE = 'faible', 'Faible'
         MOYEN = 'moyen', 'Moyen'
         ELEVE = 'eleve', 'Élevé'
 
+    # --- Élève, club, score de risque (0 à 100) et niveau ---
     eleve = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='risques_desengagement'
     )
@@ -23,6 +25,7 @@ class RisqueDesengagement(models.Model):
     class Meta:
         verbose_name = "Risque de désengagement"
         verbose_name_plural = "Risques de désengagement"
+        # Un seul score par couple élève/club (mis à jour à chaque calcul).
         constraints = [
             models.UniqueConstraint(fields=['eleve', 'club'], name='risque_unique_par_club')
         ]
@@ -31,6 +34,7 @@ class RisqueDesengagement(models.Model):
         return f"{self.eleve.nom_complet} - {self.club.nom} : {self.niveau} ({self.score_risque}%)"
 
 
+# === Prédiction du nombre de participants (une par activité) ===
 class PredictionParticipation(models.Model):
     """Nombre d'élèves prévus pour une activité future."""
 
@@ -48,6 +52,7 @@ class PredictionParticipation(models.Model):
         return f"{self.activite.titre} : {self.nombre_prevu} participants prévus"
 
 
+# === Alerte « club en difficulté » (une par club) ===
 class ClubEnDifficulte(models.Model):
     """Club identifié comme ayant une baisse d'activité significative."""
 

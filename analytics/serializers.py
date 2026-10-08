@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import RisqueDesengagement
 from .models import PredictionParticipation, ClubEnDifficulte
 
+# Risque de désengagement envoyé au navigateur (avec noms lisibles).
 class RisqueDesengagementSerializer(serializers.ModelSerializer):
     eleve_nom = serializers.CharField(source='eleve.nom_complet', read_only=True)
     club_nom = serializers.CharField(source='club.nom', read_only=True)
@@ -12,6 +13,7 @@ class RisqueDesengagementSerializer(serializers.ModelSerializer):
         read_only_fields = fields
         
 
+# Prédiction de participation (avec le titre de l'activité).
 class PredictionParticipationSerializer(serializers.ModelSerializer):
     activite_titre = serializers.CharField(source='activite.titre', read_only=True)
 
@@ -21,6 +23,7 @@ class PredictionParticipationSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+# Alerte « club en difficulté » (avec le nom du club).
 class ClubEnDifficulteSerializer(serializers.ModelSerializer):
     club_nom = serializers.CharField(source='club.nom', read_only=True)
 
@@ -29,6 +32,7 @@ class ClubEnDifficulteSerializer(serializers.ModelSerializer):
         fields = ['id', 'club', 'club_nom', 'score_difficulte', 'raison', 'date_calcul']
         read_only_fields = fields
         
+# Chiffres du tableau de bord (liste des valeurs attendues par le front).
 class StatistiquesGlobalesSerializer(serializers.Serializer):
     nombre_clubs = serializers.IntegerField()
     nombre_activites = serializers.IntegerField()

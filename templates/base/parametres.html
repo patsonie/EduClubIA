@@ -98,6 +98,11 @@
                             <label class="form-label small fw-medium" for="champ-domaine">Domaine de compétence</label>
                             <input type="text" class="form-control" name="domaine_competence" id="champ-domaine" placeholder="Ex: Sport, Informatique...">
                         </div>
+                        <div class="col-md-6 d-none" data-roles="encadreur">
+                            <label class="form-label small fw-medium" for="champ-club-encadre">Club encadré</label>
+                            <!-- Rempli par parametres.js : club actuel + clubs sans encadreur -->
+                            <select class="form-select" name="club_encadre" id="champ-club-encadre"></select>
+                        </div>
                         <div class="col-md-6 d-none" data-roles="proviseur">
                             <label class="form-label small fw-medium" for="champ-service">Service / responsabilité</label>
                             <input type="text" class="form-control" name="service_responsabilite" id="champ-service">

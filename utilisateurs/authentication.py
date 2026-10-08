@@ -3,6 +3,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 
+# Authentification JWT utilisée par toute l'API (déclarée dans settings.py, REST_FRAMEWORK).
 class JWTAuthenticationStatutValide(JWTAuthentication):
     """
     Refuse les jetons d'un compte dont le statut n'est plus « valide »
@@ -16,6 +17,7 @@ class JWTAuthenticationStatutValide(JWTAuthentication):
         return user
 
 
+# Coupe toutes les sessions d'un utilisateur (suspension, refus, changement de mot de passe).
 def revoquer_jetons(utilisateur):
     """Blackliste tous les refresh tokens en circulation d'un utilisateur."""
     for jeton in OutstandingToken.objects.filter(user=utilisateur):

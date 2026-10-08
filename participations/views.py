@@ -1,3 +1,4 @@
+# Imports : vues DRF, modèles, périmètre des gestionnaires et notification d'absence aux parents.
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,6 +13,7 @@ from utilisateurs.perimetre import est_gestion_globale, clubs_geres, peut_gerer_
 from notifications.services import notifier_parents_absence
 
 
+# === API des présences : /api/participations/ ===
 class ParticipationViewSet(viewsets.ModelViewSet):
     """
     CRUD des participations (présences).
@@ -26,6 +28,8 @@ class ParticipationViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date_enregistrement']
 
 
+    # Chacun ne voit que son périmètre (admin/RP : tout ; encadreur : ses clubs ;
+    # parent : ses enfants ; élève : lui-même).
     def get_queryset(self):
         user = self.request.user
         base = Participation.objects.select_related(
@@ -39,16 +43,19 @@ class ParticipationViewSet(viewsets.ModelViewSet):
             return base.filter(inscription__eleve__in=user.enfants)
         return base.filter(inscription__eleve=user)
 
+    # Création d'une présence : les parents sont prévenus en cas d'absence.
     def perform_create(self, serializer):
         participation = serializer.save(enregistre_par=self.request.user)
         notifier_parents_absence(participation)
 
+    # Modification : nouvelle notification seulement si le statut change.
     def perform_update(self, serializer):
         ancien_statut = serializer.instance.statut
         participation = serializer.save(enregistre_par=self.request.user)
         if participation.statut != ancien_statut:
             notifier_parents_absence(participation)
 
+    # Qui peut consulter le bilan d'un élève donné.
     @staticmethod
     def _peut_consulter_eleve(user, eleve_id):
         if est_gestion_globale(user) or user.role == 'encadreur':
@@ -57,12 +64,14 @@ class ParticipationViewSet(viewsets.ModelViewSet):
             return user.enfants.filter(id=eleve_id).exists()
         return user.id == eleve_id
 
+    # Bilan individuel d'un élève : nombre d'activités, présences et taux de participation.
     @action(detail=False, methods=['get'])
     def rapport_individuel(self, request):
         """
         GET /api/participations/rapport_individuel/?eleve_id=3
         Calcule le taux de participation d'un élève sur l'ensemble de ses activités.
         """
+        # Lecture et contrôle du paramètre eleve_id.
         eleve_id = request.query_params.get('eleve_id')
         if not eleve_id:
             return Response(
@@ -83,6 +92,7 @@ class ParticipationViewSet(viewsets.ModelViewSet):
                 {"error": "Vous n'êtes pas autorisé à consulter cet élève."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        # Calcul du taux de présence.
         total = participations.count()
         presences = participations.filter(statut=Participation.Statut.PRESENT).count()
         taux = round((presences / total * 100), 2) if total > 0 else 0.0
@@ -100,6 +110,7 @@ class ParticipationViewSet(viewsets.ModelViewSet):
         serializer = RapportIndividuelSerializer(data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # Appel complet d'une activité en une seule requête (page « Présences » de l'encadreur).
     @action(detail=False, methods=['post'])
     def enregistrer_lot(self, request):
         """
@@ -107,6 +118,7 @@ class ParticipationViewSet(viewsets.ModelViewSet):
         body: {"activite": <id>, "presences": [{"inscription": <id>, "statut": "present"}, ...]}
         Crée ou met à jour en une seule requête (atomique) les présences de toute une activité.
         """
+        # L'activité doit exister et appartenir à un club géré par l'utilisateur.
         try:
             activite = Activite.objects.select_related('club').get(pk=request.data.get('activite'))
         except (Activite.DoesNotExist, TypeError, ValueError):
@@ -118,6 +130,7 @@ class ParticipationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Contrôle de chaque ligne envoyée (inscription validée du club, statut connu).
         presences = request.data.get('presences')
         if not isinstance(presences, list) or not presences:
             return Response({"error": "La liste `presences` est requise."}, status=status.HTTP_400_BAD_REQUEST)
@@ -149,6 +162,7 @@ class ParticipationViewSet(viewsets.ModelViewSet):
                 )
             entrees.append((inscription_id, entree['statut']))
 
+        # Enregistrement atomique : tout ou rien.
         anciens = dict(
             Participation.objects.filter(activite=activite).values_list('inscription_id', 'statut')
         )
@@ -162,6 +176,7 @@ class ParticipationViewSet(viewsets.ModelViewSet):
                 )
                 resultats.append(participation)
 
+        # Notifie les parents uniquement pour les présences dont le statut a changé.
         for participation in resultats:
             if anciens.get(participation.inscription_id) != participation.statut:
                 notifier_parents_absence(participation)

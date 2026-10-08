@@ -3,6 +3,7 @@ import time
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 
+# Délai minimum entre deux messages d'une même connexion (anti-flood).
 DELAI_MIN_ENTRE_MESSAGES = 0.5  # secondes : limite anti-flood par connexion
 
 
@@ -13,6 +14,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     Les droits sont revérifiés à chaque message (suspension, retrait du club...).
     """
 
+    # Ouverture de la connexion : utilisateur authentifié et autorisé dans ce salon, sinon refus.
     async def connect(self):
         self.salon_id = self.scope['url_route']['kwargs']['salon_id']
         self.groupe_salon = f'salon_{self.salon_id}'
@@ -31,10 +33,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.groupe_salon, self.channel_name)
         await self.accept()
 
+    # Fermeture : on quitte le groupe de diffusion du salon.
     async def disconnect(self, close_code):
         if hasattr(self, 'groupe_salon'):
             await self.channel_layer.group_discard(self.groupe_salon, self.channel_name)
 
+    # Réception d'un message depuis le navigateur : contrôles, enregistrement, diffusion à tous.
     async def receive(self, text_data=None, bytes_data=None):
         try:
             data = json.loads(text_data)
@@ -50,17 +54,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not contenu or len(contenu) > 2000:
             return
 
+        # Anti-flood.
         maintenant = time.monotonic()
         if maintenant - self.dernier_envoi < DELAI_MIN_ENTRE_MESSAGES:
             return
         self.dernier_envoi = maintenant
 
+        # Droits revérifiés à chaque message (compte suspendu ou retiré du club entre-temps).
         if not await self.verifier_acces_salon():
             await self.close(code=4003)
             return
 
         message = await self.enregistrer_message(contenu)
 
+        # Envoi du message à toutes les connexions du salon.
         await self.channel_layer.group_send(
             self.groupe_salon,
             {
@@ -73,6 +80,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
+    # Transmission d'un message diffusé vers le navigateur de cette connexion.
     async def diffuser_message(self, event):
         await self.send(text_data=json.dumps({
             'id': event['message_id'],
@@ -83,6 +91,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'fichier_url': event.get('fichier_url'),
         }))
 
+    # Accès base de données (synchrone) appelé depuis le code asynchrone.
     @database_sync_to_async
     def verifier_acces_salon(self):
         from .models import SalonDiscussion
@@ -98,6 +107,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         return utilisateur_a_acces_salon(utilisateur, salon)
 
+    # Enregistre le message en base.
     @database_sync_to_async
     def enregistrer_message(self, contenu):
         from .models import SalonDiscussion, Message

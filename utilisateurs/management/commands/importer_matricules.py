@@ -15,10 +15,12 @@ from utilisateurs.matricules import importer_csv
 class Command(BaseCommand):
     help = "Importe la liste officielle des matricules (CSV)."
 
+    # Arguments de la commande : chemin du fichier CSV et rôle concerné.
     def add_arguments(self, parser):
         parser.add_argument('fichier')
         parser.add_argument('--role', choices=['eleve', 'encadreur'], default='eleve')
 
+    # Lance l'import et affiche le bilan (créés, mis à jour, erreurs).
     def handle(self, *args, **options):
         try:
             with open(options['fichier'], 'rb') as f:

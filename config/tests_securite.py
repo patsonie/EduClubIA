@@ -438,12 +438,14 @@ class ListeOfficielleMatricules(BaseDonnees):
         from utilisateurs.models import MatriculeOfficiel
         MatriculeOfficiel.objects.create(matricule="ENC001", role='encadreur', nom="Kamga", prenom="Luc")
         self.assertEqual(self._inscrire("LIBRE02", email="e2@t.cm").status_code, 201)  # liste élèves vide
+        libre = Club.objects.create(nom="Libre", description="d", objectifs="o", nombre_max_membres=5)
         r = APIClient().post('/api/auth/register/', {
             'email': 'enc@t.cm', 'nom': 'Faux', 'prenom': 'Nom', 'role': 'encadreur',
-            'type_encadreur': 'professionnel', 'matricule': 'ENC001',
+            'type_encadreur': 'professionnel', 'matricule': 'ENC001', 'club': libre.id,
             'password': 'Secret-Solide-2026', 'password2': 'Secret-Solide-2026',
         }, format='json')
         self.assertEqual(r.status_code, 400)
+        self.assertIn('matricule', r.data)
 
     def test_import_csv_reserve_a_l_administrateur(self):
         contenu = "matricule;nom;prenom;classe\nM100;Ngo;Rose;2nde C\nM101;Tala;Paul;\n"
@@ -488,3 +490,97 @@ class ListeOfficielleMatricules(BaseDonnees):
         self.assertEqual(self.client.get('/api/auth/matricules/').status_code, 403)
         self.auth(self.proviseur)
         self.assertEqual(self.client.delete(f'/api/auth/matricules/{r.data[0]["id"]}/').status_code, 403)
+
+
+class EncadreurClubEtValidation(BaseDonnees):
+    """Encadreur : un seul club choisi à l'inscription, modifiable via le profil ; compte validé par le RP."""
+
+    def setUp(self):
+        super().setUp()
+        self.libre = Club.objects.create(nom="Libre", description="d", objectifs="o", nombre_max_membres=5)
+        self.libre2 = Club.objects.create(nom="Libre 2", description="d", objectifs="o", nombre_max_membres=5)
+
+    def _inscrire_encadreur(self, type_encadreur, club, email="nv@t.cm", **extra):
+        return APIClient().post('/api/auth/register/', {
+            'email': email, 'nom': 'Nkoulou', 'prenom': 'Paul', 'role': 'encadreur',
+            'type_encadreur': type_encadreur, 'club': club.id if club else None,
+            'fonction': 'Professeur', 'domaine_competence': 'Sport',
+            'password': 'Secret-Solide-2026', 'password2': 'Secret-Solide-2026', **extra,
+        }, format='json')
+
+    def test_clubs_disponibles_exclut_les_clubs_deja_encadres(self):
+        r = APIClient().get('/api/auth/clubs-disponibles/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual({c['nom'] for c in r.data}, {"Libre", "Libre 2"})
+
+    def test_club_obligatoire_et_libre(self):
+        self.assertIn('club', self._inscrire_encadreur('vacataire', None).data)
+        r = self._inscrire_encadreur('vacataire', self.club1)   # déjà encadré par enc1
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('club', r.data)
+
+    def test_vacataire_et_professionnel_restent_en_attente_de_validation(self):
+        self.assertEqual(self._inscrire_encadreur('vacataire', self.libre).status_code, 201)
+        self.assertEqual(
+            self._inscrire_encadreur('professionnel', self.libre2, email="pro@t.cm", matricule="PRO1").status_code, 201,
+        )
+        for email in ("nv@t.cm", "pro@t.cm"):
+            encadreur = Utilisateur.objects.get(email=email)
+            self.assertEqual(encadreur.statut_validation, Utilisateur.StatutValidation.EN_ATTENTE)
+            r = APIClient().post('/api/auth/login/', {'email': email, 'password': 'Secret-Solide-2026'}, format='json')
+            self.assertNotEqual(r.status_code, 200)
+        self.libre.refresh_from_db()
+        self.assertEqual(self.libre.responsable.email, "nv@t.cm")   # club réservé dès l'inscription
+
+        encadreur = Utilisateur.objects.get(email="nv@t.cm")
+        self.auth(self.proviseur)
+        self.assertEqual(self.client.post(f'/api/auth/comptes/{encadreur.id}/valider/').status_code, 200)
+        encadreur.refresh_from_db()
+        self.assertEqual(encadreur.statut_validation, Utilisateur.StatutValidation.VALIDE)
+
+    def test_refus_libere_le_club(self):
+        self._inscrire_encadreur('vacataire', self.libre)
+        encadreur = Utilisateur.objects.get(email="nv@t.cm")
+        self.auth(self.proviseur)
+        self.client.post(f'/api/auth/comptes/{encadreur.id}/refuser/', {'motif': 'x'}, format='json')
+        self.libre.refresh_from_db()
+        self.assertIsNone(self.libre.responsable)
+
+    def test_changement_de_club_par_le_profil(self):
+        self.auth(self.enc1)
+        r = self.client.patch('/api/auth/profil/', {'club_encadre': self.libre.id}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['club_encadre_details']['id'], self.libre.id)
+        self.club1.refresh_from_db()
+        self.assertIsNone(self.club1.responsable)   # ancien club libéré
+        # impossible de prendre le club d'un autre encadreur
+        r = self.client.patch('/api/auth/profil/', {'club_encadre': self.club2.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_eleve_ne_choisit_pas_de_club_encadre(self):
+        self.auth(self.eleve1)
+        r = self.client.patch('/api/auth/profil/', {'club_encadre': self.libre.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+
+class EleveInscriptionClub(BaseDonnees):
+    def test_inscription_sans_annee_puis_desinscription(self):
+        self.auth(self.eleve2)
+        r = self.client.post('/api/inscriptions/', {'club': self.club2.id}, format='json')
+        self.assertEqual(r.status_code, 201)   # année active par défaut
+        self.assertEqual(self.client.get(f'/api/clubs/{self.club2.id}/').data['mon_inscription']['statut'], 'en_attente')
+        self.assertEqual(self.client.post(f"/api/inscriptions/{r.data['id']}/se_desinscrire/").status_code, 200)
+        self.assertIsNone(self.client.get(f'/api/clubs/{self.club2.id}/').data['mon_inscription'])
+
+    def test_eleve_ne_desinscrit_pas_un_autre_eleve(self):
+        self.auth(self.eleve2)
+        r = self.client.post(f'/api/inscriptions/{self.ins1.id}/se_desinscrire/')
+        self.assertEqual(r.status_code, 404)
+
+    def test_plusieurs_centres_d_interet(self):
+        from utilisateurs.models import CentreInteret
+        ids = [CentreInteret.objects.create(nom=f"Intérêt {i}").id for i in range(3)]
+        self.auth(self.eleve1)
+        r = self.client.patch('/api/auth/profil/', {'interets': ids}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(sorted(r.data['interets']), sorted(ids))

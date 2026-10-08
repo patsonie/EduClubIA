@@ -10,6 +10,7 @@ class EstEncadreurOuAdminOuLectureSeule(permissions.BasePermission):
     pour les activités de ses propres clubs.
     """
 
+    # Lecture : tout utilisateur connecté ; écriture : gestionnaires.
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_authenticated
@@ -18,6 +19,7 @@ class EstEncadreurOuAdminOuLectureSeule(permissions.BasePermission):
             and request.user.role in ['administrateur', 'proviseur', 'encadreur']
         )
 
+    # Sur une activité précise : l'encadreur doit gérer le club de l'activité.
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True

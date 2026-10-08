@@ -1,3 +1,7 @@
+# === Moteur de recommandation de clubs (IA) ===
+# Trois sources combinées : profil de l'élève (TF-IDF, « content-based »), comportement
+# des élèves similaires (KNN, « collaboratif ») et, à défaut, popularité des clubs.
+# Les modèles entraînés sont stockés dans settings.IA_MODELES_DIR (fichiers .pkl).
 import re
 import unicodedata
 
@@ -21,6 +25,7 @@ MOTS_VIDES = frozenset(
 )
 
 
+# --- Outils de traitement du texte ---
 def normaliser(texte):
     """Minuscules, sans accents."""
     texte = unicodedata.normalize('NFKD', texte or '')
@@ -37,6 +42,7 @@ def nouveau_vectoriseur():
     return TfidfVectorizer(analyzer=analyser_texte, sublinear_tf=True)
 
 
+# Cache mémoire des modèles chargés (évite de relire les fichiers à chaque requête).
 _CACHE_MODELES = {}
 
 
@@ -51,6 +57,7 @@ def charger_modele(chemin):
     return objet
 
 
+# --- Profil de l'élève et des clubs (textes comparés par l'IA) ---
 def interets_actifs(eleve):
     """Centres d'intérêt actifs de l'élève (liste vide s'il n'en a pas choisi)."""
     return [i for i in eleve.interets.all() if i.actif]
@@ -106,6 +113,7 @@ def construire_texte_profil_club(club):
     return f"{club.categorie} {club.description} {club.objectifs}"
 
 
+# --- Outils pour expliquer une recommandation à l'élève ---
 def clubs_deja_rejoints(eleve):
     """Retourne les IDs des clubs auxquels l'élève est déjà inscrit activement."""
     return Inscription.objects.filter(
@@ -142,6 +150,7 @@ def generer_explication(eleve, club, mots_communs):
     )
 
 
+# --- 1. Recommandation par le profil (content-based) ---
 def calculer_recommandations_content_based(eleve, top_n=10):
     """
     PIPELINE DE PRÉDICTION (content-based).
@@ -149,10 +158,12 @@ def calculer_recommandations_content_based(eleve, top_n=10):
     aux clubs actifs ; sinon calcule à la volée (avant le premier entraînement,
     ou si des clubs ont été créés/désactivés depuis).
     """
+    # Profil vide (aucun intérêt, aucune filière) : pas de recommandation par le profil.
     texte_eleve = construire_texte_profil_eleve(eleve)
     if not texte_eleve.strip():
         return []
 
+    # Fichiers du modèle entraîné.
     chemin_vectorizer = settings.IA_MODELES_DIR / 'tfidf_vectorizer.pkl'
     chemin_matrice = settings.IA_MODELES_DIR / 'tfidf_matrice_clubs.pkl'
     chemin_ids = settings.IA_MODELES_DIR / 'tfidf_club_ids.pkl'
@@ -185,6 +196,7 @@ def calculer_recommandations_content_based(eleve, top_n=10):
         similarites = cosine_similarity(matrice_tfidf[0:1], matrice_tfidf[1:])[0]
         candidats = list(zip([c.id for c in clubs], similarites))
 
+    # Score en pourcentage et explication pour chaque club non encore rejoint.
     resultats = []
     for club_id, score in candidats:
         club = clubs_actifs.get(club_id)
@@ -201,6 +213,7 @@ def calculer_recommandations_content_based(eleve, top_n=10):
     return resultats[:top_n]
 
 
+# --- 2. Recommandation par le comportement (collaboratif) ---
 def _scores_par_voisins(matrice, modele, eleve_id, ids_deja_rejoints):
     """Somme des similarités des voisins de l'élève, par club (hors clubs déjà rejoints)."""
     index_eleve = matrice.index.get_loc(eleve_id)
@@ -252,6 +265,7 @@ def calculer_recommandations_collaboratives(eleve, top_n=10, k_voisins=5):
     if not scores_clubs:
         return {}
 
+    # Normalisation des scores entre 0 et 100.
     # Seuls les clubs actifs sont recommandables
     ids_actifs = set(
         Club.objects.filter(id__in=scores_clubs.keys(), statut=Club.Statut.ACTIF).values_list('id', flat=True)
@@ -266,6 +280,7 @@ def calculer_recommandations_collaboratives(eleve, top_n=10, k_voisins=5):
     return {cid: round((s / score_max) * 100, 2) for cid, s in scores_clubs.items()}
 
 
+# Données d'entrée du modèle collaboratif.
 def construire_matrice_eleve_club():
     """
     Matrice élève × club (DataFrame pandas) : 1 si l'élève a été inscrit
@@ -286,6 +301,7 @@ def construire_matrice_eleve_club():
     )
 
 
+# --- 3. Repli « nouvel élève » : clubs les plus populaires ---
 def recommandations_populaires(eleve, top_n=5):
     """
     Repli « cold start » : clubs actifs les plus populaires (effectif validé),
@@ -316,6 +332,8 @@ def recommandations_populaires(eleve, top_n=5):
     ]
 
 
+# --- Combinaison finale (fonction appelée par la vue /api/recommandations/) ---
+# Pour changer le poids profil/comportement, modifier poids_profil et poids_comportement.
 def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_comportement=0.4):
     """
     Combine le content-based filtering (profil) et le collaborative filtering
@@ -338,6 +356,7 @@ def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_c
     if not tous_ids_clubs:
         return recommandations_populaires(eleve, top_n=min(top_n, 5))
 
+    # Récupère les clubs trouvés uniquement par le modèle collaboratif.
     ids_manquants = set(scores_comportement) - set(clubs_par_id)
     if ids_manquants:
         for club in Club.objects.filter(id__in=ids_manquants, statut=Club.Statut.ACTIF):
@@ -346,6 +365,7 @@ def calculer_recommandations_hybrides(eleve, top_n=10, poids_profil=0.6, poids_c
     resultats_finaux = []
     a_du_comportement = bool(scores_comportement)
 
+    # Score final et explication pour chaque club candidat.
     for club_id in tous_ids_clubs:
         club = clubs_par_id.get(club_id)
         if not club:

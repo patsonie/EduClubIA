@@ -9,6 +9,7 @@ class Recommandation(models.Model):
     Recalculée périodiquement par le moteur IA (content-based filtering).
     """
 
+    # --- Élève, club recommandé, score (0 à 100) et explication affichée à l'élève ---
     eleve = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -24,6 +25,7 @@ class Recommandation(models.Model):
         verbose_name = "Recommandation"
         verbose_name_plural = "Recommandations"
         ordering = ['-score']
+        # Une seule recommandation par couple élève/club (mise à jour à chaque calcul).
         constraints = [
             models.UniqueConstraint(fields=['eleve', 'club'], name='recommandation_unique_par_club')
         ]
@@ -31,9 +33,11 @@ class Recommandation(models.Model):
     def __str__(self):
         return f"{self.eleve.nom_complet} → {self.club.nom} ({self.score}%)"
     
+# === Historique des entraînements des modèles IA ===
 class HistoriqueEntrainement(models.Model):
     """Trace chaque exécution du pipeline d'entraînement des modèles IA."""
 
+    # Origine de l'entraînement (bouton de l'admin, tâche planifiée...).
     class TypeDeclenchement(models.TextChoices):
         MANUEL = 'manuel', 'Manuel'
         HEBDOMADAIRE = 'hebdomadaire', 'Hebdomadaire'
@@ -43,6 +47,7 @@ class HistoriqueEntrainement(models.Model):
         SUCCES = 'succes', 'Succès'
         ECHEC = 'echec', 'Échec'
 
+    # --- Résultat, métriques de validation (JSON), durée et auteur ---
     type_declenchement = models.CharField(max_length=15, choices=TypeDeclenchement.choices)
     statut = models.CharField(max_length=10, choices=Statut.choices)
     metriques = models.TextField(help_text="Résultats de validation au format JSON", blank=True)

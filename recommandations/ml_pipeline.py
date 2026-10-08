@@ -23,14 +23,17 @@ from .services import (
     construire_texte_profil_club, construire_texte_profil_eleve, nouveau_vectoriseur,
 )
 
+# Emplacement des fichiers du modèle « profil » (TF-IDF).
 CHEMIN_VECTORIZER = settings.IA_MODELES_DIR / 'tfidf_vectorizer.pkl'
 CHEMIN_MATRICE_CLUBS = settings.IA_MODELES_DIR / 'tfidf_matrice_clubs.pkl'
 CHEMIN_CLUB_IDS = settings.IA_MODELES_DIR / 'tfidf_club_ids.pkl'
 
+# Emplacement des fichiers du modèle « comportement » (KNN).
 CHEMIN_MODELE_KNN = settings.IA_MODELES_DIR / 'knn_modele.pkl'
 CHEMIN_MATRICE_ELEVE_CLUB = settings.IA_MODELES_DIR / 'knn_matrice_eleve_club.pkl'
 CHEMIN_ELEVE_IDS = settings.IA_MODELES_DIR / 'knn_eleve_ids.pkl'
 
+# Nombre de clubs proposés pris en compte lors de la validation (top 3).
 TOP_K_VALIDATION = 3
 
 
@@ -43,6 +46,7 @@ def entrainer_modele_content_based():
     if not clubs:
         return {"statut": "echec", "raison": "Aucun club actif à entraîner."}
 
+    # Texte de chaque club actif → matrice TF-IDF.
     textes = [construire_texte_profil_club(c) for c in clubs]
     club_ids = [c.id for c in clubs]
 
@@ -52,6 +56,7 @@ def entrainer_modele_content_based():
     except ValueError:
         return {"statut": "echec", "raison": "Vocabulaire vide : descriptions de clubs insuffisantes."}
 
+    # Sauvegarde sur disque, relue ensuite par services.py.
     joblib.dump(vectorizer, CHEMIN_VECTORIZER)
     joblib.dump(matrice_clubs, CHEMIN_MATRICE_CLUBS)
     joblib.dump(club_ids, CHEMIN_CLUB_IDS)
@@ -75,6 +80,7 @@ def valider_modele_content_based():
     if len(clubs) < 2:
         return {"valide": False, "raison": "Pas assez de clubs actifs pour valider."}
 
+    # Clubs réellement suivis par chaque élève, et clubs les plus populaires (référence de comparaison).
     from utilisateurs.models import Utilisateur
     inscriptions = Inscription.objects.filter(
         statut=Inscription.Statut.VALIDEE, club__statut=Club.Statut.ACTIF
@@ -85,6 +91,7 @@ def valider_modele_content_based():
     popularite = pd.Series([c for _, c in inscriptions]).value_counts()
     top_populaires = list(popularite.index[:TOP_K_VALIDATION]) if len(popularite) else []
 
+    # Élèves évalués : ceux qui ont un profil déclaré et au moins un club validé.
     eleves = [
         e for e in Utilisateur.objects.filter(id__in=clubs_par_eleve.keys()).prefetch_related('interets')
         if construire_texte_profil_eleve(e, inclure_historique=False).strip()
@@ -96,6 +103,7 @@ def valider_modele_content_based():
             "nb_eleves_evalues": len(eleves),
         }
 
+    # Similarité entre le profil de chaque élève et chaque club.
     textes_clubs = [construire_texte_profil_club(c) for c in clubs]
     ids_clubs = [c.id for c in clubs]
     textes_eleves = [construire_texte_profil_eleve(e, inclure_historique=False) for e in eleves]
@@ -105,6 +113,7 @@ def valider_modele_content_based():
         return {"valide": False, "raison": "Vocabulaire vide."}
     sim = cosine_similarity(matrice[len(clubs):], matrice[:len(clubs)])
 
+    # Pour chaque élève : un de ses vrais clubs est-il dans le top 3 proposé ?
     hits, hits_baseline, precisions, clubs_recommandes = 0, 0, [], set()
     for i, eleve in enumerate(eleves):
         reels = clubs_par_eleve[eleve.id]
@@ -115,6 +124,7 @@ def valider_modele_content_based():
         precisions.append(correct / TOP_K_VALIDATION)
         hits_baseline += 1 if reels & set(top_populaires) else 0
 
+    # Le modèle est jugé valide s'il fait au moins aussi bien que la simple popularité.
     hit_rate = round(hits / len(eleves) * 100, 1)
     hit_baseline = round(hits_baseline / len(eleves) * 100, 1)
     return {
@@ -128,6 +138,7 @@ def valider_modele_content_based():
     }
 
 
+# Matrice élève × club (1 = inscrit) utilisée par le modèle collaboratif.
 def _matrice_eleve_club():
     inscriptions = Inscription.objects.filter(
         statut__in=['validee', 'en_attente', 'archivee']
@@ -151,6 +162,7 @@ def entrainer_modele_collaboratif():
     if len(matrice) < 2:
         return {"statut": "echec", "raison": "Pas assez d'élèves distincts pour entraîner un modèle collaboratif."}
 
+    # Ajustement du KNN (6 voisins au plus) puis sauvegarde sur disque.
     nb_voisins = min(6, len(matrice))
     modele = NearestNeighbors(n_neighbors=nb_voisins, metric='cosine')
     modele.fit(matrice.values)
@@ -178,6 +190,7 @@ def valider_modele_collaboratif(k_voisins=5, top_k=TOP_K_VALIDATION, taille_max=
     if matrice.empty:
         return {"valide": False, "raison": "Aucune donnée pour valider."}
 
+    # Seuls les élèves ayant au moins 2 clubs peuvent être évalués (on en masque un).
     eligibles = matrice[matrice.sum(axis=1) >= 2]
     if len(eligibles) < 5 or len(matrice) < 6:
         return {
@@ -192,6 +205,7 @@ def valider_modele_collaboratif(k_voisins=5, top_k=TOP_K_VALIDATION, taille_max=
     hits = hits_baseline = 0
     precisions, rappels, clubs_recommandes = [], [], set()
 
+    # Pour chaque élève de l'échantillon : masquer un club, réentraîner, et vérifier qu'il est retrouvé.
     for eleve_id, ligne in echantillon.iterrows():
         clubs_reels = list(ligne[ligne == 1].index)
         club_masque = clubs_reels[0]  # déterministe (index trié)
@@ -204,6 +218,7 @@ def valider_modele_collaboratif(k_voisins=5, top_k=TOP_K_VALIDATION, taille_max=
         position = entrainement.index.get_loc(eleve_id)
         distances, voisins = modele.kneighbors([entrainement.iloc[position].values])
 
+        # Score de chaque club selon les voisins les plus proches.
         scores = {}
         for distance, idx in zip(distances[0], voisins[0]):
             if entrainement.index[idx] == eleve_id:
@@ -220,9 +235,11 @@ def valider_modele_collaboratif(k_voisins=5, top_k=TOP_K_VALIDATION, taille_max=
         precisions.append((1 if reussi else 0) / top_k)
         rappels.append(1 if reussi else 0)
 
+        # Même test avec la simple popularité (référence).
         top_pop = [c for c in popularite.index if entrainement.loc[eleve_id, c] == 0][:top_k]
         hits_baseline += 1 if club_masque in top_pop else 0
 
+    # Bilan de la validation.
     n = len(echantillon)
     hit_rate = round(hits / n * 100, 1)
     hit_baseline = round(hits_baseline / n * 100, 1)

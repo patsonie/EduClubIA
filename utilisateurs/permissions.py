@@ -1,6 +1,7 @@
 from rest_framework import permissions
 
 
+# Permission : administrateur ou responsable pédagogique uniquement.
 class EstAdminOuProviseur(permissions.BasePermission):
     """Seuls administrateurs et proviseurs peuvent gérer les comptes parents."""
 
@@ -11,6 +12,7 @@ class EstAdminOuProviseur(permissions.BasePermission):
         )
 
 
+# Permission : administrateur uniquement.
 class EstAdministrateur(permissions.BasePermission):
     """Réservé aux administrateurs."""
 
@@ -21,6 +23,7 @@ class EstAdministrateur(permissions.BasePermission):
         )
 
 
+# Limites de fréquence (taux définis dans settings.py, DEFAULT_THROTTLE_RATES).
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 

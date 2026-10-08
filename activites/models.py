@@ -6,6 +6,7 @@ from clubs.models import Club
 class Activite(models.Model):
     """Représente une activité extrascolaire planifiée par un club."""
 
+    # Cycle d'une activité : planifiée → validée → en cours → terminée (ou annulée).
     class Statut(models.TextChoices):
         PLANIFIEE = 'planifiee', 'Planifiée'
         VALIDEE = 'validee', 'Validée'
@@ -13,6 +14,7 @@ class Activite(models.Model):
         TERMINEE = 'terminee', 'Terminée'
         ANNULEE = 'annulee', 'Annulée'
 
+    # --- Informations de l'activité (club, titre, date, lieu, budget, responsable) ---
     club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='activites')
     titre = models.CharField(max_length=200)
     description = models.TextField()
@@ -40,6 +42,7 @@ class Activite(models.Model):
         return f"{self.titre} ({self.club.nom}) - {self.date}"
 
 
+# Historique des changements de statut d'une activité.
 class HistoriqueActivite(models.Model):
     """Trace les changements de statut d'une activité (planification, validation, annulation...)."""
 

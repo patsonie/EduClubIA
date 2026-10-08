@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import Inscription, HistoriqueInscription
 
 
+# Inscriptions et leur historique dans l'interface d'administration.
 @admin.register(Inscription)
 class InscriptionAdmin(admin.ModelAdmin):
     list_display = ('eleve', 'club', 'annee_scolaire', 'statut', 'date_inscription')

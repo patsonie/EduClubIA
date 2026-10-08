@@ -6,6 +6,7 @@ from .models import Notification, PreferenceNotification
 from .serializers import NotificationSerializer, PreferenceNotificationSerializer
 
 
+# === API des notifications : /api/notifications/ ===
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     GET /api/notifications/ — liste des notifications de l'utilisateur connecté.
@@ -16,6 +17,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    # Uniquement les notifications de l'utilisateur connecté ; filtre facultatif ?lu=true/false.
     def get_queryset(self):
         queryset = Notification.objects.filter(destinataire=self.request.user)
         lu = self.request.query_params.get('lu')
@@ -23,6 +25,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(lu=(lu.lower() == 'true'))
         return queryset
 
+    # Marquer une notification comme lue.
     @action(detail=True, methods=['post'])
     def marquer_lu(self, request, pk=None):
         notification = self.get_object()
@@ -31,6 +34,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification.save()
         return Response(NotificationSerializer(notification).data, status=status.HTTP_200_OK)
 
+    # Tout marquer comme lu d'un coup.
     @action(detail=False, methods=['post'])
     def tout_marquer_lu(self, request):
         Notification.objects.filter(destinataire=request.user, lu=False).update(
@@ -39,16 +43,19 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({"message": "Toutes les notifications ont été marquées comme lues."}, status=status.HTTP_200_OK)
 
 
+# === Préférences de notification de l'utilisateur connecté ===
 class PreferenceNotificationView(viewsets.ViewSet):
     """
     GET/PUT /api/notifications/preferences/ — gestion des préférences de canal.
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    # GET : lit les préférences (créées avec les valeurs par défaut si besoin).
     def list(self, request):
         preference, _ = PreferenceNotification.objects.get_or_create(utilisateur=request.user)
         return Response(PreferenceNotificationSerializer(preference).data)
 
+    # PUT : modifie les préférences.
     def update_preferences(self, request):
         preference, _ = PreferenceNotification.objects.get_or_create(utilisateur=request.user)
         serializer = PreferenceNotificationSerializer(preference, data=request.data, partial=True)

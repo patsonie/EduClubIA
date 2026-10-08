@@ -1,20 +1,27 @@
+# Vues des pages HTML : chacune affiche simplement un gabarit du dossier templates/.
+# Pour ajouter une page : créer le gabarit, ajouter une classe ici et une adresse dans config/urls.py.
 from django.views.generic import TemplateView
 
 
 
+# Page de connexion.
 class PageConnexionView(TemplateView):
     template_name = 'base/connexion.html'
 
 
+# Tableau de bord (contenu adapté au rôle par le JavaScript).
 class PageDashboardView(TemplateView):
     template_name = 'dashboard/dashboard.html'
     
+# Pages du parent : ses enfants.
 class PageMesEnfantsView(TemplateView):
     template_name = 'parents/mes_enfants.html'
     
+# Liste des clubs.
 class PageClubsView(TemplateView):
     template_name = 'clubs/liste_clubs.html'
     
+# Détail d'un club : l'identifiant du club est transmis au gabarit (variable CLUB_ID du JavaScript).
 class PageDetailClubView(TemplateView):
     template_name = 'clubs/detail_club.html'
 
@@ -23,6 +30,7 @@ class PageDetailClubView(TemplateView):
         context['club_id'] = kwargs.get('club_id')
         return context
     
+# Activités, présences, notifications, messagerie et profil.
 class PageActivitesView(TemplateView):
     template_name = 'activites/liste_activites.html'
     
@@ -38,12 +46,14 @@ class PageMessagerieView(TemplateView):
 class PageParametresView(TemplateView):
     template_name = 'base/parametres.html'
     
+# Inscriptions aux clubs (gestionnaires) et calendrier.
 class PageInscriptionsView(TemplateView):
     template_name = 'clubs/inscriptions.html'
 
 class PageCalendrierView(TemplateView):
     template_name = 'activites/calendrier.html'
 
+# Pages de l'élève : ses clubs, ses activités, ses présences, ses recommandations.
 class PageMesClubsView(TemplateView):
     template_name = 'clubs/mes_clubs.html'
 
@@ -56,6 +66,7 @@ class PageMesPresencesView(TemplateView):
 class PageRecommandationsView(TemplateView):
     template_name = 'clubs/recommandations.html'
 
+# Pages du parent : recommandations, clubs, activités, présences et calendrier de ses enfants.
 class PageParentRecommandationsView(TemplateView):
     template_name = 'parents/recommandations.html'
 
@@ -74,6 +85,7 @@ class PageParentPresencesView(TemplateView):
 class PageParentCalendrierView(TemplateView):
     template_name = 'parents/calendrier_enfants.html'
     
+# Inscription publique, comptes en attente, utilisateurs et rapports.
 class PageInscriptionView(TemplateView):
     template_name = 'base/inscription.html'
     
@@ -86,6 +98,7 @@ class PageUtilisateursView(TemplateView):
 class PageRapportsView(TemplateView):
     template_name = 'base/rapports.html'
     
+# Mot de passe oublié et réinitialisation (uid et jeton du lien transmis au gabarit).
 class PageMotDePasseOublieView(TemplateView):
     template_name = 'base/mot_de_passe_oublie.html'
 
@@ -99,5 +112,6 @@ class PageReinitialiserMotDePasseView(TemplateView):
         context['token'] = kwargs.get('token')
         return context
     
+# Validation du compte responsable pédagogique par code.
 class PageValidationCompteView(TemplateView):
     template_name = 'base/validation_compte.html'

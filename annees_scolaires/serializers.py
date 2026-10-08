@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import AnneeScolaire
 
 
+# Année scolaire telle qu'échangée avec l'interface.
 class AnneeScolaireSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnneeScolaire
@@ -9,6 +10,7 @@ class AnneeScolaireSerializer(serializers.ModelSerializer):
         # `est_active` ne se change que via l'action /activer/ (qui archive aussi les inscriptions).
         read_only_fields = ['id', 'est_active', 'date_creation']
 
+    # Vérifie que la date de fin est après la date de début.
     def validate(self, attrs):
         date_debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
         date_fin = attrs.get('date_fin', getattr(self.instance, 'date_fin', None))

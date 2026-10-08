@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import Participation
 
 
+# Présences dans l'interface d'administration.
 @admin.register(Participation)
 class ParticipationAdmin(admin.ModelAdmin):
     list_display = ('inscription', 'activite', 'statut', 'date_enregistrement', 'enregistre_par')

@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import Activite, HistoriqueActivite
 
 
+# Activités et leur historique dans l'interface d'administration.
 @admin.register(Activite)
 class ActiviteAdmin(admin.ModelAdmin):
     list_display = ('titre', 'club', 'date', 'heure', 'lieu', 'statut', 'budget')

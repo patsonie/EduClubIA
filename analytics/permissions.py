@@ -14,6 +14,7 @@ class EstGestionnaire(permissions.BasePermission):
 
     ROLES_AUTORISES = ['administrateur', 'proviseur', 'encadreur', 'parent']
 
+    # Vrai si l'utilisateur connecté a l'un des rôles autorisés.
     def has_permission(self, request, view):
         return (
             request.user
@@ -31,6 +32,7 @@ class EstGestionnaireStrict(permissions.BasePermission):
 
     ROLES_AUTORISES = ['administrateur', 'proviseur', 'encadreur']
 
+    # Vrai si l'utilisateur connecté est administrateur, RP ou encadreur.
     def has_permission(self, request, view):
         return (
             request.user

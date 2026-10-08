@@ -1,3 +1,4 @@
+# Adresses de l'API des comptes, toutes préfixées par /api/auth/ (voir config/urls.py).
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -10,14 +11,18 @@ from .views import (
     ConfirmerReinitialisationMotDePasseView, EnvoyerCodeValidationView,
     RegenererCodeValidationView, ValiderCodeCompteView,  RenvoyerCodeExpireView,
     MatriculeOfficielViewSet, CentresInteretView,
+    ClubsDisponiblesView, AssocierEnfantMatriculeView, DemandeRattachementViewSet,
 )
 
+# Routeur DRF : génère automatiquement les adresses liste/détail/actions des ViewSets.
 router = DefaultRouter()
 router.register(r'parents', ParentViewSet, basename='parent')
 router.register(r'codes-invitation', CodeInvitationViewSet, basename='code-invitation')
 router.register(r'utilisateurs', UtilisateurAdminViewSet, basename='utilisateur-admin')
 router.register(r'matricules', MatriculeOfficielViewSet, basename='matricule-officiel')
+router.register(r'demandes-rattachement', DemandeRattachementViewSet, basename='demande-rattachement')
 
+# Adresses définies une par une (connexion, profil, validation des comptes...).
 urlpatterns = [
     path('register/', InscriptionView.as_view(), name='inscription'),
     path('login/', ConnexionView.as_view(), name='connexion'),
@@ -27,6 +32,8 @@ urlpatterns = [
     path('interets/', CentresInteretView.as_view(), name='centres_interet'),
     path('changer-mot-de-passe/', ChangementMotDePasseView.as_view(), name='changer_mot_de_passe'),
     path('mes-enfants/', MesEnfantsView.as_view(), name='mes_enfants'),
+    path('mes-enfants/associer/', AssocierEnfantMatriculeView.as_view(), name='associer_enfant_matricule'),
+    path('clubs-disponibles/', ClubsDisponiblesView.as_view(), name='clubs_disponibles'),
     path('dashboard-parent/', TableauDeBordParentView.as_view(), name='dashboard_parent'),
     path('comptes-en-attente/', ComptesEnAttenteView.as_view(), name='comptes_en_attente'),
     path('comptes/<int:pk>/valider/', ValiderCompteView.as_view(), name='valider_compte'),

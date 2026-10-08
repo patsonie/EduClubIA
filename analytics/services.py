@@ -1,3 +1,4 @@
+# Calculs d'analyse : risque de désengagement, prédiction de participation, clubs en difficulté.
 from datetime import timedelta
 from participations.models import Participation
 from inscriptions.models import Inscription
@@ -8,6 +9,7 @@ from activites.models import Activite
 from clubs.models import Club
 
 
+# --- Risque de désengagement (règles simples, sans apprentissage) ---
 def calculer_taux_presence(inscription, depuis_jours=None):
     """Calcule le taux de présence d'une inscription, optionnellement limité à une période récente."""
     participations = Participation.objects.filter(inscription=inscription)
@@ -16,6 +18,7 @@ def calculer_taux_presence(inscription, depuis_jours=None):
         date_limite = timezone.now() - timedelta(days=depuis_jours)
         participations = participations.filter(date_enregistrement__gte=date_limite)
 
+    # Aucune présence enregistrée sur la période : pas de taux calculable.
     total = participations.count()
     if total == 0:
         return None
@@ -51,6 +54,7 @@ def calculer_risque_desengagement(inscription):
     return min(max(score_risque, 0), 100)
 
 
+# Seuils des niveaux : 60 et plus = élevé, 30 à 59 = moyen, sinon faible.
 def determiner_niveau_risque(score):
     if score >= 60:
         return 'eleve'
@@ -66,6 +70,7 @@ def calculer_risques_desengagement_tous_eleves(**filtre):
     résultats (sans les sauvegarder — la vue s'en charge).
     Méthode : score à base de règles (taux de présence global/récent), pas d'apprentissage.
     """
+    # Uniquement les inscriptions validées (élèves membres).
     inscriptions_actives = Inscription.objects.filter(
         statut=Inscription.Statut.VALIDEE, **filtre
     ).select_related('eleve', 'club')
@@ -82,6 +87,7 @@ def calculer_risques_desengagement_tous_eleves(**filtre):
 
     return resultats
 
+# --- Prédiction du nombre de participants à une activité ---
 def predire_nombre_participants(activite):
     """
     PIPELINE DE PRÉDICTION : utilise le modèle entraîné et persisté si
@@ -97,18 +103,23 @@ def predire_nombre_participants(activite):
     from .ml_pipeline import effectifs_historiques
     effectifs = effectifs_historiques(activite.club, exclure_activite_id=activite.id)
 
+    # Aucun historique : on prévoit la moitié des membres.
     if not effectifs:
         return max(round(activite.club.nombre_membres_actuels * 0.5), 1)
 
+    # Peu d'historique : moyenne des effectifs passés.
     if len(effectifs) < 3:
         return round(sum(effectifs) / len(effectifs))
 
+    # Sinon : tendance par régression linéaire, plafonnée au nombre maximal de membres.
     X = np.arange(len(effectifs)).reshape(-1, 1)
     modele = LinearRegression().fit(X, np.array(effectifs))
     prediction = max(round(modele.predict([[len(effectifs)]])[0]), 0)
     return min(prediction, activite.club.nombre_max_membres)
 
 
+# --- Détection des clubs en difficulté ---
+# Pour être moins ou plus sévère, modifier seuil_baisse (baisse en % à partir de laquelle on alerte).
 def detecter_clubs_en_difficulte(seuil_baisse=30):
     """
     Détecte les clubs ayant une baisse d'activité significative, en comparant :
@@ -124,6 +135,7 @@ def detecter_clubs_en_difficulte(seuil_baisse=30):
             club=club, statut=Activite.Statut.TERMINEE
         ).order_by('-date')
 
+        # Taux de présence de chaque activité terminée (de la plus récente à la plus ancienne).
         taux_par_activite = []
         for act in activites_terminees:
             total = act.participations.count()
@@ -135,6 +147,7 @@ def detecter_clubs_en_difficulte(seuil_baisse=30):
         if len(taux_par_activite) < 4:
             continue  # pas assez de données pour évaluer une tendance
 
+        # Compare les 3 activités les plus récentes aux 3 précédentes.
         recentes = taux_par_activite[:3]
         anciennes = taux_par_activite[3:6] if len(taux_par_activite) >= 6 else taux_par_activite[3:]
 
@@ -147,6 +160,7 @@ def detecter_clubs_en_difficulte(seuil_baisse=30):
         if moyenne_ancienne == 0:
             continue
 
+        # Baisse en pourcentage ; alerte si elle dépasse le seuil.
         baisse_pourcent = round((1 - moyenne_recente / moyenne_ancienne) * 100, 2)
 
         if baisse_pourcent >= seuil_baisse:

@@ -5,6 +5,7 @@ from django.conf import settings
 class Notification(models.Model):
     """Notification interne adressée à un utilisateur."""
 
+    # Types de notifications (servent au filtrage et aux icônes de l'interface).
     class TypeNotification(models.TextChoices):
         NOUVELLE_ACTIVITE = 'nouvelle_activite', 'Nouvelle activité'
         VALIDATION_INSCRIPTION = 'validation_inscription', "Validation d'inscription"
@@ -14,6 +15,7 @@ class Notification(models.Model):
         ALERTE_DESENGAGEMENT = 'alerte_desengagement', 'Alerte de désengagement'
         AUTRE = 'autre', 'Autre'
 
+    # --- Destinataire, contenu et état de lecture ---
     destinataire = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications'
     )
@@ -33,6 +35,7 @@ class Notification(models.Model):
         return f"{self.destinataire.nom_complet} - {self.titre}"
 
 
+# Choix des canaux par utilisateur (interne, email, SMS), réglables dans « Paramètres ».
 class PreferenceNotification(models.Model):
     """Préférences de canal de notification par utilisateur."""
 

@@ -1,3 +1,5 @@
+# Imports : vues DRF, modèles et calculs d'analyse (prédictions IA), périmètre des gestionnaires,
+# et xhtml2pdf pour produire le rapport PDF.
 from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -28,14 +30,17 @@ import io
 from django.db.models import Count, Q
 from django.db.models.functions import TruncMonth
 from datetime import timedelta
+# Noms de mois abrégés pour l'axe du graphique d'évolution des inscriptions.
 MOIS_ABREGES = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc']
 
 
+# === Données du rapport par club (partagées par la version JSON et la version PDF) ===
 def construire_rapport_clubs(request):
     """Données communes au rapport JSON et PDF, limitées au périmètre de l'utilisateur."""
     from participations.models import Participation
     from inscriptions.models import Inscription
 
+    # Clubs concernés : ceux que l'utilisateur gère, éventuellement un seul via ?club=<id>.
     club_id = request.query_params.get('club')
     clubs = clubs_geres(request.user)
     if club_id:
@@ -48,6 +53,7 @@ def construire_rapport_clubs(request):
     )
     club_filtre_nom = clubs.first().nom if club_id and clubs.exists() else None
 
+    # Présences et nombre d'activités par club, calculés en peu de requêtes.
     participations = Participation.objects.filter(inscription__club__in=clubs)
     par_club = {
         ligne['inscription__club_id']: ligne
@@ -59,6 +65,7 @@ def construire_rapport_clubs(request):
         Activite.objects.filter(club__in=clubs).values_list('club_id').annotate(n=Count('id'))
     )
 
+    # Une ligne par club : membres, activités, taux de présence.
     rapport_clubs = []
     for club in clubs:
         stats = par_club.get(club.id, {'total': 0, 'presents': 0})
@@ -71,6 +78,7 @@ def construire_rapport_clubs(request):
             "taux_participation": taux,
         })
 
+    # Taux de présence global sur le périmètre.
     total_global = participations.count()
     taux_global = round(participations.filter(statut='present').count() / total_global * 100, 1) if total_global else 0
 
@@ -83,6 +91,7 @@ def construire_rapport_clubs(request):
     }
 
 
+# === Risque de désengagement des élèves (prédiction IA) ===
 class RisqueDesengagementView(APIView):
     """
     GET /api/predictions/risques-desengagement/
@@ -103,6 +112,7 @@ class RisqueDesengagementView(APIView):
             filtre = {}
         perimetre_complet = not filtre
 
+        # Calcul du risque pour chaque élève/club du périmètre, puis sauvegarde.
         resultats = calculer_risques_desengagement_tous_eleves(**filtre)
 
         objets_sauvegardes = []
@@ -123,6 +133,7 @@ class RisqueDesengagementView(APIView):
                 pk__in=[o.pk for o in objets_sauvegardes]
             ).delete()
 
+        # Filtre facultatif par niveau, puis tri du risque le plus élevé au plus faible.
         niveau_filtre = request.query_params.get('niveau')
         if niveau_filtre:
             objets_sauvegardes = [o for o in objets_sauvegardes if o.niveau == niveau_filtre]
@@ -133,6 +144,7 @@ class RisqueDesengagementView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+# === Prédiction du nombre de participants à une activité ===
 class PredictionParticipationView(APIView):
     """
     GET /api/predictions/participation/{activite_id}/
@@ -161,6 +173,7 @@ class PredictionParticipationView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+# === Clubs en difficulté (baisse d'activité ou de participation) ===
 class ClubEnDifficulteView(APIView):
     """
     GET /api/predictions/clubs-difficulte/
@@ -169,6 +182,7 @@ class ClubEnDifficulteView(APIView):
     """
     permission_classes = [EstGestionnaireStrict]
 
+    # Calcul pour tous les clubs, puis restriction aux clubs gérés par l'utilisateur.
     def get(self, request):
         resultats = detecter_clubs_en_difficulte()
         ids_geres = set(clubs_geres(request.user).values_list('id', flat=True))
@@ -196,6 +210,7 @@ class ClubEnDifficulteView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+# === Chiffres du tableau de bord principal ===
 class StatistiquesGlobalesView(APIView):
     """
     GET /api/predictions/statistiques-globales/
@@ -207,10 +222,12 @@ class StatistiquesGlobalesView(APIView):
     def get(self, request):
         
 
+        # Bornes du mois en cours et du mois précédent (pour les variations en %).
         aujourdhui = timezone.now().date()
         debut_mois_actuel = aujourdhui.replace(day=1)
         debut_mois_precedent = (debut_mois_actuel - timedelta(days=1)).replace(day=1)
 
+        # Variation en % entre le mois en cours et le mois précédent.
         def variation_pourcentage(queryset, champ_date):
             ce_mois = queryset.filter(**{f'{champ_date}__gte': debut_mois_actuel}).count()
             mois_dernier = queryset.filter(
@@ -220,6 +237,7 @@ class StatistiquesGlobalesView(APIView):
                 return 100.0 if ce_mois > 0 else 0.0
             return round(((ce_mois - mois_dernier) / mois_dernier) * 100, 1)
 
+        # Les 5 clubs les plus suivis et les 5 prochaines activités.
         clubs_populaires = list(
             Club.objects.annotate(
                 membres_annotes=Count('inscriptions', filter=Q(inscriptions__statut='validee'))
@@ -230,10 +248,12 @@ class StatistiquesGlobalesView(APIView):
             date__gte=aujourdhui
         ).exclude(statut=Activite.Statut.ANNULEE).order_by('date')[:5]
 
+        # Nombre de clubs par catégorie (graphique en anneau).
         repartition_categories = list(
             Club.objects.values('categorie').annotate(total=Count('id')).order_by('-total')
         )
 
+        # Inscriptions par mois sur les 12 derniers mois (graphique d'évolution).
         from inscriptions.models import Inscription
         inscriptions_par_mois = (
             Inscription.objects.filter(date_inscription__gte=aujourdhui - timedelta(days=365))
@@ -247,6 +267,7 @@ class StatistiquesGlobalesView(APIView):
             for i in inscriptions_par_mois
         ]
         
+        # Indicateurs d'activité et de présence du mois.
         from participations.models import Participation
 
         activites_en_cours = Activite.objects.filter(statut=Activite.Statut.EN_COURS).count()
@@ -264,6 +285,7 @@ class StatistiquesGlobalesView(APIView):
                 Participation.objects.filter(statut='present').count() / total_participations_global * 100, 1
             )
 
+        # Les 5 clubs ayant le meilleur taux de présence.
         stats_clubs = (
             Club.objects.filter(statut='actif')
             .annotate(
@@ -282,6 +304,7 @@ class StatistiquesGlobalesView(APIView):
             key=lambda c: c["taux_participation"], reverse=True,
         )[:5]
 
+        # Données envoyées au tableau de bord.
         data = {
             "nombre_clubs": Club.objects.count(),
             "nombre_activites": Activite.objects.count(),
@@ -315,6 +338,7 @@ class StatistiquesGlobalesView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+# === Rapport détaillé (affichage à l'écran, page « Rapports ») ===
 class RapportDetailleView(APIView):
     """
     GET /api/predictions/rapport-detaille/?club=<id>  (optionnel, sinon tous les clubs)
@@ -335,6 +359,7 @@ class RapportDetailleView(APIView):
             "clubs": rapport["clubs"],
         }, status=status.HTTP_200_OK)
         
+# === Rapport détaillé en PDF (téléchargement) ===
 class RapportPDFView(APIView):
     """
     GET /api/predictions/rapport-detaille/pdf/?club=<id>  (optionnel)
@@ -344,6 +369,7 @@ class RapportPDFView(APIView):
 
     def get(self, request):
         rapport = construire_rapport_clubs(request)
+        # Variables transmises au gabarit templates/base/rapport_pdf.html.
         contexte = {
             "nom_etablissement": "Lycée — Gestion des clubs et activités",
             "date_generation": timezone.now().strftime("%d/%m/%Y à %H:%M"),
@@ -354,6 +380,7 @@ class RapportPDFView(APIView):
             "clubs": rapport["clubs"],
         }
 
+        # HTML → PDF en mémoire.
         html_genere = render_to_string('base/rapport_pdf.html', contexte)
 
         buffer_pdf = io.BytesIO()
@@ -365,6 +392,7 @@ class RapportPDFView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        # Réponse en pièce jointe téléchargeable.
         buffer_pdf.seek(0)
         reponse = HttpResponse(buffer_pdf.read(), content_type='application/pdf')
         reponse['Content-Disposition'] = 'attachment; filename="rapport_clubs.pdf"'

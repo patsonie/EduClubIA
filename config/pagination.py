@@ -11,6 +11,7 @@ class PaginationOptionnelle(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 200
 
+    # Sans ?page ni ?page_size : pas de pagination (liste complète, attendue par le front).
     def paginate_queryset(self, queryset, request, view=None):
         if 'page' not in request.query_params and 'page_size' not in request.query_params:
             return None

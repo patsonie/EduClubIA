@@ -15,6 +15,7 @@ from sklearn.linear_model import LinearRegression
 from clubs.models import Club
 from activites.models import Activite
 
+# Fichier du modèle et nombre minimum d'activités pour entraîner / valider.
 CHEMIN_MODELES_PARTICIPATION = settings.IA_MODELES_DIR / 'modeles_participation_par_club.pkl'
 MIN_POINTS_ENTRAINEMENT = 3
 MIN_POINTS_VALIDATION = 4
@@ -38,6 +39,7 @@ def entrainer_modele_participation():
     """
     modeles_par_club = {}
 
+    # Une régression linéaire par club actif ayant assez d'historique.
     for club in Club.objects.filter(statut=Club.Statut.ACTIF):
         effectifs = effectifs_historiques(club)
         if len(effectifs) < MIN_POINTS_ENTRAINEMENT:
@@ -50,6 +52,7 @@ def entrainer_modele_participation():
     if not modeles_par_club:
         return {"statut": "echec", "raison": "Aucun club n'a assez d'historique d'activités pour être entraîné (minimum 3 activités terminées avec présences)."}
 
+    # Sauvegarde du dictionnaire {id du club: modèle} sur disque.
     joblib.dump(modeles_par_club, CHEMIN_MODELES_PARTICIPATION)
     return {"statut": "succes", "nombre_clubs_entraines": len(modeles_par_club)}
 
@@ -65,6 +68,7 @@ def valider_modele_participation():
     erreurs_modele, erreurs_baseline = [], []
     y_vrais, y_pred = [], []
 
+    # Découpage chronologique : 75 % des activités pour apprendre, 25 % pour tester.
     for club in Club.objects.filter(statut=Club.Statut.ACTIF):
         effectifs = effectifs_historiques(club)
         if len(effectifs) < MIN_POINTS_VALIDATION:
@@ -78,6 +82,7 @@ def valider_modele_participation():
         X_test = np.arange(len(entrainement), len(entrainement) + len(test)).reshape(-1, 1)
         predictions = np.maximum(modele.predict(X_test), 0)
 
+        # Erreurs du modèle et de la référence « moyenne » sur la partie test.
         erreurs_modele.extend(np.abs(predictions - np.array(test)))
         erreurs_baseline.extend(np.abs(np.mean(entrainement) - np.array(test)))
         y_vrais.extend(test)
@@ -87,6 +92,7 @@ def valider_modele_participation():
     if not clubs_valides:
         return {"valide": False, "raison": "Pas assez de données (>= 4 activités terminées avec présences par club) pour valider."}
 
+    # Métriques globales : MAE (erreur moyenne), RMSE et R².
     y_vrais, y_pred = np.array(y_vrais), np.array(y_pred)
     mae = float(np.mean(erreurs_modele))
     mae_baseline = float(np.mean(erreurs_baseline))
@@ -112,6 +118,7 @@ def predire_avec_modele_entraine(activite):
     que la prédiction reste cohérente après de nouvelles activités.
     Retourne None si aucun modèle n'est disponible (repli à gérer par l'appelant).
     """
+    # Aucun modèle sauvegardé : l'appelant utilise le calcul de repli.
     if not CHEMIN_MODELES_PARTICIPATION.exists():
         return None
 
@@ -121,6 +128,7 @@ def predire_avec_modele_entraine(activite):
     if not contenu:
         return None
 
+    # Rang de la prochaine activité dans la série, puis prédiction bornée.
     rang = len(effectifs_historiques(activite.club, exclure_activite_id=activite.id))
     prediction = contenu["modele"].predict([[rang]])[0]
     prediction = max(round(prediction), 0)

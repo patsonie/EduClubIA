@@ -8,6 +8,7 @@ def archiver_inscriptions_annee_precedente(nouvelle_annee):
     """
     from inscriptions.models import Inscription
 
+    # Toute inscription liée à une année non active passe au statut « archivee ».
     Inscription.objects.filter(
         annee_scolaire__est_active=False,
     ).exclude(

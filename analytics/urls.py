@@ -4,6 +4,7 @@ from .views import (
     ClubEnDifficulteView, StatistiquesGlobalesView, RapportDetailleView, RapportPDFView,
 )
 
+# Adresses /api/predictions/... (préfixe défini dans config/urls.py).
 urlpatterns = [
     path('risques-desengagement/', RisqueDesengagementView.as_view(), name='risques-desengagement'),
     path('participation/<int:activite_id>/', PredictionParticipationView.as_view(), name='prediction-participation'),

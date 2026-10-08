@@ -1,3 +1,4 @@
+# Imports : vues DRF, transactions, modèles, permissions de périmètre et notifications.
 from django.utils import timezone
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
@@ -16,6 +17,7 @@ from notifications.services import (
 )
 
 
+# === API des inscriptions : /api/inscriptions/ ===
 class InscriptionViewSet(viewsets.ModelViewSet):
     """
     CRUD des inscriptions.
@@ -29,6 +31,8 @@ class InscriptionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['club', 'statut', 'annee_scolaire', 'eleve']
     ordering_fields = ['date_inscription']
 
+    # Chacun ne voit que son périmètre : tout (admin/RP), son club (encadreur),
+    # ses enfants (parent), ses propres inscriptions (élève).
     def get_queryset(self):
         user = self.request.user
         base = Inscription.objects.select_related('eleve', 'club', 'annee_scolaire')
@@ -40,6 +44,7 @@ class InscriptionViewSet(viewsets.ModelViewSet):
             return base.filter(eleve__in=user.enfants)
         return base.filter(eleve=user)
 
+    # Création d'une inscription (bouton « S'inscrire » de l'élève).
     def perform_create(self, serializer):
         # Un élève s'inscrit toujours lui-même. Les gestionnaires peuvent agir
         # pour le compte d'un élève ; les parents ne peuvent pas créer de lien.
@@ -83,12 +88,15 @@ class InscriptionViewSet(viewsets.ModelViewSet):
             commentaire="Création de l'inscription",
         )
 
+    # Transitions de statut autorisées : statut cible → statuts de départ possibles.
     TRANSITIONS = {
         Inscription.Statut.VALIDEE: [Inscription.Statut.EN_ATTENTE],
         Inscription.Statut.REFUSEE: [Inscription.Statut.EN_ATTENTE],
         Inscription.Statut.ANNULEE: [Inscription.Statut.EN_ATTENTE, Inscription.Statut.VALIDEE],
     }
 
+    # Change le statut d'une inscription en vérifiant la transition et la capacité du club,
+    # trace l'historique puis envoie les notifications (élève et parents).
     @transaction.atomic
     def _changer_statut(self, request, pk, nouveau_statut, commentaire):
         inscription = self.get_object()
@@ -122,6 +130,7 @@ class InscriptionViewSet(viewsets.ModelViewSet):
             notifier_refus_inscription(inscription)
         return Response(InscriptionSerializer(inscription).data, status=status.HTTP_200_OK)
 
+    # Valider une demande d'inscription (encadreur du club, RP, administrateur).
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):
         """Réservé aux gestionnaires (vérifié via has_object_permission)."""
@@ -129,12 +138,14 @@ class InscriptionViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Seuls les gestionnaires peuvent valider une inscription.")
         return self._changer_statut(request, pk, Inscription.Statut.VALIDEE, "Inscription validée")
 
+    # Refuser une demande d'inscription.
     @action(detail=True, methods=['post'])
     def refuser(self, request, pk=None):
         if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
             raise PermissionDenied("Seuls les gestionnaires peuvent refuser une inscription.")
         return self._changer_statut(request, pk, Inscription.Statut.REFUSEE, "Inscription refusée")
 
+    # Se désinscrire (élève) ou retirer une inscription (gestionnaire).
     @action(detail=True, methods=['post'])
     def se_desinscrire(self, request, pk=None):
         """L'élève peut se désinscrire lui-même de son propre club."""
@@ -146,11 +157,13 @@ class InscriptionViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Vous ne pouvez désinscrire que votre propre compte.")
         return self._changer_statut(request, pk, Inscription.Statut.ANNULEE, "Désinscription")
 
+    # Modification directe interdite à l'élève (il passe par se_desinscrire).
     def update(self, request, *args, **kwargs):
         if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
             raise PermissionDenied("Utilisez l'action de désinscription pour annuler votre inscription.")
         return super().update(request, *args, **kwargs)
 
+    # Suppression réservée aux gestionnaires.
     def destroy(self, request, *args, **kwargs):
         if request.user.role not in ['administrateur', 'proviseur', 'encadreur']:
             raise PermissionDenied("Vous n'êtes pas autorisé à supprimer une inscription.")

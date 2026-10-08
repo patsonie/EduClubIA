@@ -7,6 +7,7 @@ from .models import AnneeScolaire
 from .serializers import AnneeScolaireSerializer
 
 
+# Lecture pour tout utilisateur connecté ; écriture pour administrateur et RP.
 class EstAdminOuProviseur(permissions.BasePermission):
     """Seuls administrateurs et proviseurs peuvent gérer les années scolaires."""
 
@@ -19,11 +20,13 @@ class EstAdminOuProviseur(permissions.BasePermission):
         )
 
 
+# === API des années scolaires : /api/annees-scolaires/ ===
 class AnneeScolaireViewSet(viewsets.ModelViewSet):
     queryset = AnneeScolaire.objects.all()
     serializer_class = AnneeScolaireSerializer
     permission_classes = [EstAdminOuProviseur]
 
+    # Activer une année : la rend active et archive les inscriptions des années précédentes.
     @action(detail=True, methods=['post'])
     def activer(self, request, pk=None):
         """
@@ -44,6 +47,7 @@ class AnneeScolaireViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    # Suppression impossible si des inscriptions y sont rattachées (réponse 409).
     def destroy(self, request, *args, **kwargs):
         try:
             return super().destroy(request, *args, **kwargs)

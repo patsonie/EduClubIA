@@ -7,6 +7,8 @@ from annees_scolaires.models import AnneeScolaire
 class Inscription(models.Model):
     """Représente l'inscription d'un élève à un club pour une année scolaire donnée."""
 
+    # Cycle d'une inscription : en attente → validée / refusée ; annulée = désinscription ;
+    # archivée = année scolaire terminée.
     class Statut(models.TextChoices):
         EN_ATTENTE = 'en_attente', 'En attente de validation'
         VALIDEE = 'validee', 'Validée'
@@ -14,6 +16,7 @@ class Inscription(models.Model):
         ANNULEE = 'annulee', 'Annulée (désinscription)'
         ARCHIVEE = 'archivee', 'Archivée'
 
+    # --- L'élève, le club, l'année scolaire et le suivi de la décision ---
     eleve = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -35,6 +38,7 @@ class Inscription(models.Model):
         related_name='inscriptions_traitees',
     )
 
+    # Un élève ne peut avoir qu'une inscription par club et par année scolaire.
     class Meta:
         verbose_name = "Inscription"
         verbose_name_plural = "Inscriptions"
@@ -50,6 +54,7 @@ class Inscription(models.Model):
         return f"{self.eleve.nom_complet} → {self.club.nom} ({self.annee_scolaire.libelle})"
 
 
+# Historique : chaque changement de statut d'une inscription est conservé ici.
 class HistoriqueInscription(models.Model):
     """Trace les changements de statut d'une inscription."""
 

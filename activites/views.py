@@ -1,3 +1,4 @@
+# Imports : vues DRF, filtres, modèles, permissions et notifications.
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +12,7 @@ from utilisateurs.perimetre import est_gestion_globale, peut_gerer_club
 from notifications.services import notifier_nouvelle_activite, notifier_parents_nouvelle_activite
 
 
+# Filtres de la liste : ?club=, ?statut=, ?responsable=.
 class ActiviteFilterSet(django_filters.FilterSet):
     """
     FilterSet personnalisé : le filtre 'club' utilise un NumberFilter plutôt que
@@ -25,6 +27,7 @@ class ActiviteFilterSet(django_filters.FilterSet):
         fields = ['club', 'statut', 'responsable']
 
 
+# === API des activités : /api/activites/ ===
 class ActiviteViewSet(viewsets.ModelViewSet):
    
     queryset = Activite.objects.select_related('club', 'responsable').all()
@@ -34,11 +37,13 @@ class ActiviteViewSet(viewsets.ModelViewSet):
     search_fields = ['titre', 'description', 'lieu']
     ordering_fields = ['date', 'heure', 'budget']
 
+    # Liste → serializer allégé ; détail → serializer complet.
     def get_serializer_class(self):
         if self.action == 'list':
             return ActiviteListeSerializer
         return ActiviteSerializer
 
+    # Création : seulement pour un club géré ; historique créé et membres + parents notifiés.
     def perform_create(self, serializer):
         if not peut_gerer_club(self.request.user, serializer.validated_data['club']):
             raise PermissionDenied("Vous ne gérez pas ce club.")
@@ -54,6 +59,7 @@ class ActiviteViewSet(viewsets.ModelViewSet):
         notifier_nouvelle_activite(activite)
         notifier_parents_nouvelle_activite(activite)
 
+    # Modification : contrôle du club, et historique si le statut change.
     def perform_update(self, serializer):
         ancien_statut = serializer.instance.statut
         nouveau_club = serializer.validated_data.get('club')
@@ -69,6 +75,7 @@ class ActiviteViewSet(viewsets.ModelViewSet):
                 commentaire="Modification du statut",
             )
 
+    # Validation d'une activité par l'administration ou le RP.
     @action(detail=True, methods=['post'])
     def valider(self, request, pk=None):
         """Validation rapide d'une activité planifiée (administrateur / responsable pédagogique)."""
@@ -89,6 +96,7 @@ class ActiviteViewSet(viewsets.ModelViewSet):
 
         return Response(ActiviteSerializer(activite, context={'request': request}).data, status=status.HTTP_200_OK)
 
+    # Liste d'appel : membres du club avec leur présence déjà saisie (page « Présences »).
     @action(detail=True, methods=['get'])
     def participants_attendus(self, request, pk=None):
         """

@@ -1,3 +1,4 @@
+# Fonctions d'envoi de notifications appelées par les autres applications.
 from .models import Notification
 from django.core.mail import send_mail
 from django.conf import settings
@@ -9,6 +10,7 @@ def creer_notification(destinataire, type_notification, titre, message):
     si l'utilisateur a activé ce canal dans ses préférences.
     Respecte les préférences de canal internes existantes.
     """
+    # Notification interne si le canal est actif (ou si aucune préférence n'est définie).
     preference = getattr(destinataire, 'preference_notification', None)
 
     notification = None
@@ -20,6 +22,7 @@ def creer_notification(destinataire, type_notification, titre, message):
             message=message,
         )
 
+    # Email en plus si l'utilisateur l'a demandé.
     if preference and preference.notifications_email and destinataire.email:
         envoyer_email_notification(destinataire, titre, message)
 
@@ -46,6 +49,7 @@ def envoyer_email_notification(destinataire, titre, message):
         pass
 
 
+# Les élèves membres du club sont prévenus d'une nouvelle activité.
 def notifier_nouvelle_activite(activite):
     """Notifie tous les élèves inscrits (validés) au club concerné par la nouvelle activité."""
     from inscriptions.models import Inscription
@@ -62,6 +66,7 @@ def notifier_nouvelle_activite(activite):
         )
 
 
+# L'élève est prévenu que son inscription est validée.
 def notifier_validation_inscription(inscription):
     creer_notification(
         destinataire=inscription.eleve,
@@ -71,6 +76,7 @@ def notifier_validation_inscription(inscription):
     )
 
 
+# L'élève est prévenu que son inscription est refusée.
 def notifier_refus_inscription(inscription):
     creer_notification(
         destinataire=inscription.eleve,
@@ -79,6 +85,7 @@ def notifier_refus_inscription(inscription):
         message=f"Votre inscription au club {inscription.club.nom} a été refusée.",
     )
     
+# Notifie chaque parent dont le lien avec l'élève est validé.
 def notifier_parents(eleve, type_notification, titre, message):
     """Envoie une notification à tous les parents liés à un élève."""
     from utilisateurs.models import RelationParentEleve
@@ -96,6 +103,7 @@ def notifier_parents(eleve, type_notification, titre, message):
         )
 
 
+# Les parents sont prévenus de la validation de l'inscription de leur enfant.
 def notifier_parents_validation_inscription(inscription):
     notifier_parents(
         inscription.eleve,
@@ -105,6 +113,7 @@ def notifier_parents_validation_inscription(inscription):
     )
 
 
+# Les parents sont prévenus d'une nouvelle activité du club de leur enfant.
 def notifier_parents_nouvelle_activite(activite):
     from inscriptions.models import Inscription
     inscriptions = Inscription.objects.filter(
@@ -120,6 +129,7 @@ def notifier_parents_nouvelle_activite(activite):
         )
 
 
+# Les parents sont prévenus d'une absence (absent ou excusé).
 def notifier_parents_absence(participation):
     if participation.statut not in ['absent', 'excuse']:
         return

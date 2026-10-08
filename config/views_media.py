@@ -6,6 +6,7 @@ from django.views.static import serve
 PREFIXES_PUBLICS = ('utilisateurs/photos/', 'clubs/logos/')
 
 
+# Sert un fichier media uniquement s'il est dans un dossier public ; sinon « introuvable ».
 def media_publique(request, path):
     from django.http import Http404
     if not path.startswith(PREFIXES_PUBLICS):

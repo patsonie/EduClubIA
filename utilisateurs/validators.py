@@ -13,6 +13,7 @@ SIGNATURES = {
 }
 
 
+# Lit les premiers octets du fichier puis replace le curseur de lecture où il était.
 def valider_contenu_fichier(fichier):
     """Vérifie que le début du fichier correspond à son extension."""
     extension = os.path.splitext(fichier.name)[1].lower()
@@ -31,12 +32,14 @@ def valider_contenu_fichier(fichier):
     if not any(debut.startswith(sig) for sig in signatures):
         raise ValidationError("Le contenu du fichier ne correspond pas à son extension.")
 
+# Formats et taille maximale acceptés (modifier ici pour autoriser un autre format).
 EXTENSIONS_JUSTIFICATIF_AUTORISEES = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx']
 EXTENSIONS_PHOTO_AUTORISEES = ['.jpg', '.jpeg', '.png', '.webp']
 TAILLE_MAX_FICHIER_MO = 5
 EXTENSIONS_MESSAGE_AUTORISEES = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx']
 
 
+# Justificatif (encadreur, RP) : extension autorisée et contenu cohérent.
 def valider_extension_justificatif(fichier):
     extension = os.path.splitext(fichier.name)[1].lower()
     if extension not in EXTENSIONS_JUSTIFICATIF_AUTORISEES:
@@ -46,6 +49,7 @@ def valider_extension_justificatif(fichier):
     valider_contenu_fichier(fichier)
 
 
+# Photo de profil : extension d'image autorisée.
 def valider_extension_photo(fichier):
     extension = os.path.splitext(fichier.name)[1].lower()
     if extension not in EXTENSIONS_PHOTO_AUTORISEES:
@@ -54,12 +58,14 @@ def valider_extension_photo(fichier):
         )
 
 
+# Taille maximale commune à tous les fichiers envoyés.
 def valider_taille_fichier(fichier):
     limite_octets = TAILLE_MAX_FICHIER_MO * 1024 * 1024
     if fichier.size > limite_octets:
         raise ValidationError(f"Le fichier ne doit pas dépasser {TAILLE_MAX_FICHIER_MO} Mo.")
 
 
+# Pièce jointe de la messagerie : extension, taille et contenu.
 def valider_fichier_message(fichier):
     """Accepte uniquement des pièces jointes usuelles, de taille maîtrisée."""
     extension = os.path.splitext(fichier.name)[1].lower()

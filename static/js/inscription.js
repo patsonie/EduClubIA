@@ -80,7 +80,7 @@ document.querySelectorAll('.carte-role[data-type-encadreur]').forEach(carte => {
 
         const messageStatut = document.getElementById('message-statut-encadreur');
         messageStatut.innerHTML = typeEncadreurSelectionne === 'professionnel'
-            ? '<i class="bi bi-info-circle me-1"></i>Votre demande sera examinée par l\'administration après vérification du justificatif.'
+            ? '<i class="bi bi-info-circle me-1"></i>Comme encadreur professionnel, votre compte doit être validé par le responsable pédagogique (après vérification du justificatif) avant son activation.'
             : '<i class="bi bi-info-circle me-1"></i>Votre inscription a été enregistrée. Comme encadreur vacataire, votre compte doit être validé par le responsable pédagogique avant son activation (justificatif facultatif).';
     });
 });
@@ -129,6 +129,7 @@ function validerFormulaire() {
         }
         requis('fonction');
         requis('domaine_competence');
+        requis('club', 'Veuillez choisir le club que vous encadrerez.');
     } else if (roleSelectionne === 'proviseur') {
         requis('matricule');
         requis('fonction');
@@ -179,7 +180,7 @@ function construireDonnees() {
         donnees.matricule = valeur('matricule_encadreur');
         donnees.fonction = valeur('fonction');
         donnees.domaine_competence = valeur('domaine_competence');
-        donnees.club_souhaite = valeur('club_souhaite');
+        donnees.club = Number(valeur('club'));
         const f = champ('justificatif');
         fichier = f && f.files[0] ? f.files[0] : null;
     } else if (roleSelectionne === 'proviseur') {
@@ -284,6 +285,25 @@ async function chargerCentresInteret() {
     }
 }
 chargerCentresInteret();
+
+// ---------- Club de l'encadreur (uniquement les clubs sans encadreur) ----------
+
+async function chargerClubsDisponibles() {
+    const liste = document.getElementById('select-club-encadreur');
+    try {
+        const reponse = await fetch(`${API_BASE}/auth/clubs-disponibles/`);
+        const clubs = reponse.ok ? await reponse.json() : [];
+        if (!clubs.length) {
+            liste.innerHTML = '<option value="">Aucun club disponible pour le moment</option>';
+            return;
+        }
+        liste.innerHTML = '<option value="">Choisissez un club</option>';
+        clubs.forEach(c => liste.add(new Option(c.nom, c.id)));
+    } catch (_) {
+        liste.innerHTML = '<option value="">Clubs indisponibles, réessayez plus tard</option>';
+    }
+}
+chargerClubsDisponibles();
 
 // ---------- Zone de dépôt du justificatif pour le responsable pédagogique ----------
 

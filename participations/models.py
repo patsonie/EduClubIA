@@ -7,12 +7,14 @@ from inscriptions.models import Inscription
 class Participation(models.Model):
     """Enregistre la présence (ou absence) d'un élève inscrit à une activité de son club."""
 
+    # Statuts de présence possibles lors de l'appel.
     class Statut(models.TextChoices):
         PRESENT = 'present', 'Présent'
         ABSENT = 'absent', 'Absent'
         EXCUSE = 'excuse', 'Absence excusée'
         RETARD = 'retard', 'En retard'
 
+    # --- L'inscription de l'élève (donc l'élève et son club), l'activité et qui a fait l'appel ---
     inscription = models.ForeignKey(
         Inscription, on_delete=models.CASCADE, related_name='participations'
     )
@@ -30,6 +32,7 @@ class Participation(models.Model):
         verbose_name = "Participation"
         verbose_name_plural = "Participations"
         ordering = ['-date_enregistrement']
+        # Une seule ligne de présence par élève inscrit et par activité.
         constraints = [
             models.UniqueConstraint(
                 fields=['inscription', 'activite'],

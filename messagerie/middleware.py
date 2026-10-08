@@ -6,6 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from .tickets import consommer_ticket
 
 
+# Retrouve l'utilisateur à partir du ticket (valide, non utilisé, compte actif) ; sinon anonyme.
 @database_sync_to_async
 def obtenir_utilisateur_depuis_ticket(ticket):
     from utilisateurs.models import Utilisateur
@@ -28,6 +29,7 @@ class JWTAuthMiddleware(BaseMiddleware):
     Exemple : ws://127.0.0.1:8000/ws/messagerie/1/?ticket=<ticket>
     """
 
+    # Lit le paramètre ?ticket= de l'URL WebSocket et place l'utilisateur dans la connexion.
     async def __call__(self, scope, receive, send):
         query_string = parse_qs(scope["query_string"].decode())
         ticket = query_string.get("ticket", [None])[0]

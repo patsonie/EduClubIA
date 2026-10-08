@@ -2,10 +2,12 @@
 from django.core import signing
 from django.core.cache import cache
 
+# Clé de signature propre aux tickets et durée de validité.
 SALT = 'messagerie.ws-ticket'
 DUREE_VALIDITE = 30  # secondes
 
 
+# Crée un ticket signé contenant l'identifiant de l'utilisateur.
 def creer_ticket(utilisateur):
     return signing.dumps({'uid': utilisateur.id}, salt=SALT)
 
@@ -16,6 +18,7 @@ def consommer_ticket(ticket):
         donnees = signing.loads(ticket, salt=SALT, max_age=DUREE_VALIDITE)
     except signing.BadSignature:
         return None
+    # Usage unique : le ticket est mémorisé en cache dès sa première utilisation.
     if not cache.add(f'wsticket:{ticket}', 1, DUREE_VALIDITE * 2):
         return None
     return donnees.get('uid')

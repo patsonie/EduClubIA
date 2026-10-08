@@ -7,12 +7,14 @@ class AnneeScolaire(models.Model):
     Une seule année peut être "active" à la fois.
     """
 
+    # --- Libellé et dates de l'année ---
     libelle = models.CharField(max_length=20, unique=True, help_text="Ex: 2025-2026")
     date_debut = models.DateField()
     date_fin = models.DateField()
     est_active = models.BooleanField(default=False)
     date_creation = models.DateTimeField(auto_now_add=True)
 
+    # Contrainte en base : une seule année peut avoir est_active=True.
     class Meta:
         verbose_name = "Année scolaire"
         verbose_name_plural = "Années scolaires"
@@ -27,6 +29,7 @@ class AnneeScolaire(models.Model):
     def __str__(self):
         return self.libelle
 
+    # Enregistrement : activer une année désactive automatiquement les autres.
     def save(self, *args, **kwargs):
         # Si cette année est marquée comme active, désactive toutes les autres.
         if self.est_active:

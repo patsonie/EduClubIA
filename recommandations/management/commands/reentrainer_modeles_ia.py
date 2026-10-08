@@ -23,6 +23,7 @@ from analytics.ml_pipeline import entrainer_modele_participation, valider_modele
 class Command(BaseCommand):
     help = "Réentraîne et valide les modèles IA (recommandations + prédiction de participation)."
 
+    # Option --type : origine du déclenchement enregistrée dans l'historique.
     def add_arguments(self, parser):
         parser.add_argument(
             '--type', type=str, default='manuel',
@@ -30,6 +31,7 @@ class Command(BaseCommand):
             help="Type de déclenchement à enregistrer dans l'historique.",
         )
 
+    # Exécution : entraîne et valide les trois modèles, puis enregistre le résultat.
     def handle(self, *args, **options):
         type_declenchement = options['type']
         debut = time.time()
@@ -63,6 +65,7 @@ class Command(BaseCommand):
             for cle, valeur in resultats.items():
                 self.stdout.write(f"  {cle} : {valeur}")
 
+        # En cas d'erreur, l'échec est enregistré dans l'historique.
         except Exception as e:
             duree = round(time.time() - debut, 2)
             HistoriqueEntrainement.objects.create(

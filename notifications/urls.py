@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import NotificationViewSet, PreferenceNotificationView
 
+# Routeur : liste, détail et actions des notifications.
 router = DefaultRouter()
 router.register(r'', NotificationViewSet, basename='notification')
 

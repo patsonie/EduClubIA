@@ -5,5 +5,6 @@ class MessagerieConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'messagerie'
 
+    # Au démarrage, active la création automatique des salons (signals.py).
     def ready(self):
         import messagerie.signals

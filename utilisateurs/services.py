@@ -8,6 +8,7 @@ def construire_dashboard_parent(parent):
     ses clubs, ses activités à venir, son taux de présence/absence, ses dernières
     notifications et ses recommandations IA.
     """
+    # Imports locaux pour éviter les dépendances circulaires entre applications.
     from inscriptions.models import Inscription
     from activites.models import Activite
     from participations.models import Participation
@@ -16,16 +17,19 @@ def construire_dashboard_parent(parent):
 
     enfants_data = []
 
+    # Pour chaque enfant au lien validé : clubs, activités à venir, présences, notifications, IA.
     for enfant in parent.enfants:
         inscriptions = Inscription.objects.filter(eleve=enfant, statut=Inscription.Statut.VALIDEE)
         clubs = [i.club for i in inscriptions]
         clubs_ids = [c.id for c in clubs]
 
+        # Activités à venir (10 maximum) des clubs de l'enfant, hors activités annulées.
         activites_a_venir = Activite.objects.filter(
             club_id__in=clubs_ids,
             date__gte=timezone.now().date(),
         ).exclude(statut=Activite.Statut.ANNULEE).order_by('date')[:10]
 
+        # Statistiques de présence : « excusé » est compté comme une absence.
         participations = Participation.objects.filter(inscription__eleve=enfant)
         total_participations = participations.count()
         presences = participations.filter(statut=Participation.Statut.PRESENT).count()
@@ -38,6 +42,7 @@ def construire_dashboard_parent(parent):
 
         recommandations = calculer_recommandations_hybrides(enfant, top_n=5)
 
+        # Données envoyées au navigateur pour cet enfant.
         enfants_data.append({
             "id": enfant.id,
             "nom_complet": enfant.nom_complet,
@@ -60,13 +65,17 @@ def construire_dashboard_parent(parent):
             ],
         })
 
-    from .models import RelationParentEleve
+    # Demandes de rattachement encore en attente (par matricule ou par nom).
+    from .models import RelationParentEleve, DemandeRattachement
     demandes = RelationParentEleve.objects.filter(
         parent=parent, statut=RelationParentEleve.Statut.EN_ATTENTE
     ).select_related('enfant')
+    demandes_nominatives = DemandeRattachement.objects.filter(
+        parent=parent, statut=DemandeRattachement.Statut.EN_ATTENTE
+    ).values_list('nom_complet_enfant', flat=True)
 
     return {
         "nombre_enfants": len(enfants_data),
         "enfants": enfants_data,
-        "demandes_en_attente": [d.enfant.nom_complet for d in demandes],
+        "demandes_en_attente": [d.enfant.nom_complet for d in demandes] + list(demandes_nominatives),
     }

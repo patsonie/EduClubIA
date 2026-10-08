@@ -7,6 +7,7 @@ class UtilisateurManager(BaseUserManager):
     utilisant l'email comme identifiant unique au lieu du username.
     """
 
+    # Crée un compte standard : email normalisé et mot de passe haché.
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("L'adresse email est obligatoire.")
@@ -16,6 +17,7 @@ class UtilisateurManager(BaseUserManager):
         utilisateur.save(using=self._db)
         return utilisateur
 
+    # Crée un superutilisateur (commande createsuperuser) avec le rôle administrateur.
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)

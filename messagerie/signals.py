@@ -5,12 +5,14 @@ from activites.models import Activite
 from .models import SalonDiscussion
 
 
+# Création automatique d'un salon pour chaque nouveau club.
 @receiver(post_save, sender=Club)
 def creer_salon_pour_club(sender, instance, created, **kwargs):
     if created:
         SalonDiscussion.objects.create(club=instance)
 
 
+# Création automatique d'un salon pour chaque nouvelle activité.
 @receiver(post_save, sender=Activite)
 def creer_salon_pour_activite(sender, instance, created, **kwargs):
     if created:

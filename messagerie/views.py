@@ -1,3 +1,4 @@
+# Imports : vues DRF, diffusion temps réel (Channels), modèles, règles d'accès et validation des fichiers.
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -16,6 +17,7 @@ from inscriptions.models import Inscription
 from utilisateurs.validators import valider_fichier_message
 
 
+# === API de la messagerie : /api/messagerie/salons/ ===
 class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     GET /api/messagerie/salons/ — liste des salons accessibles à l'utilisateur connecté.
@@ -25,6 +27,8 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SalonDiscussionSerializer
     permission_classes = [permissions.IsAuthenticated, EstMembreDuSalon]
 
+    # Salons visibles selon le rôle : tous les salons de club/activité pour admin et RP,
+    # ceux de ses clubs pour l'encadreur et l'élève, et ses conversations privées.
     def get_queryset(self):
         user = self.request.user
         base = SalonDiscussion.objects.select_related('club', 'activite')
@@ -47,6 +51,7 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
         ).distinct()
 
 
+    # Historique des messages d'un salon (ordre chronologique).
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
         salon = self.get_object()
@@ -54,6 +59,7 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # Envoi d'un fichier dans un salon (contrôle du format, de la taille et du contenu).
     @action(detail=True, methods=['post'])
     def envoyer_fichier(self, request, pk=None):
         salon = self.get_object()
@@ -71,6 +77,7 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
         if len(contenu) > 2000:
             raise ValidationError({"contenu": "Le message ne doit pas dépasser 2 000 caractères."})
 
+        # Enregistrement du message avec sa pièce jointe.
         message = Message.objects.create(
             salon=salon,
             expediteur=request.user,
@@ -96,6 +103,7 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = MessageSerializer(message, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    # Téléchargement d'une pièce jointe.
     @action(detail=True, methods=['get'], url_path=r'fichier/(?P<message_id>\d+)')
     def fichier(self, request, pk=None, message_id=None):
         # Télécharge la pièce jointe d'un message, après contrôle d'accès au salon.
@@ -113,6 +121,7 @@ class SalonDiscussionViewSet(viewsets.ReadOnlyModelViewSet):
         return FileResponse(ouvert, as_attachment=True, filename=message.fichier.name.rsplit('/', 1)[-1])
 
 
+# === Ticket WebSocket (remplace le JWT dans l'URL de connexion) ===
 class TicketWebSocketView(APIView):
     """POST /api/messagerie/ticket/ — ticket à usage unique (30 s) pour ouvrir une connexion WebSocket."""
     permission_classes = [permissions.IsAuthenticated]

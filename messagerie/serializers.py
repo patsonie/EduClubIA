@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import SalonDiscussion, Message
 
 
+# === Message tel qu'envoyé au navigateur ===
 class MessageSerializer(serializers.ModelSerializer):
     expediteur_nom = serializers.CharField(source='expediteur.nom_complet', read_only=True)
     contenu = serializers.CharField(required=False, allow_blank=True, max_length=2000)
@@ -19,6 +20,7 @@ class MessageSerializer(serializers.ModelSerializer):
         return f'/api/messagerie/salons/{obj.salon_id}/fichier/{obj.id}/'
 
 
+# === Salon avec son dernier message (liste de gauche dans la messagerie) ===
 class SalonDiscussionSerializer(serializers.ModelSerializer):
     nom_affiche = serializers.ReadOnlyField()
     dernier_message = serializers.SerializerMethodField()
@@ -27,6 +29,7 @@ class SalonDiscussionSerializer(serializers.ModelSerializer):
         model = SalonDiscussion
         fields = ['id', 'club', 'activite', 'nom_affiche', 'date_creation', 'dernier_message']
 
+    # Aperçu du dernier message du salon.
     def get_dernier_message(self, obj):
         dernier = obj.messages.select_related('expediteur').order_by('-date_envoi').first()
         if not dernier:
